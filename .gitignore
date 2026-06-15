@@ -17,3 +17,7 @@ benchmarks/results/**/raw/
 .idea/
 .vscode/
 *.swp
+
+# python
+__pycache__/
+*.pyc
