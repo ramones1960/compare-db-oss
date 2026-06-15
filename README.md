@@ -95,17 +95,23 @@ make ycsb DB=postgresql WORKLOAD=A
 各 DB を **用途別の GUI** から SELECT / INSERT などで操作できるサンプルアプリを同梱。
 
 ```bash
-# 試したい DB を起動してから
-make up DB=postgresql
-make up DB=redis
-make up DB=mongodb
-
 # お試しアプリを起動（http://localhost:8000）
 make app
+
+# 停止
+make app-down
 ```
 
 DB のデータモデルに応じて画面が切り替わります（SQL エディタ / ドキュメント / KVS /
-Cypher / 時系列 / 全文検索 / ベクトル）。詳細は [app/README.md](app/README.md)。
+Cypher / 時系列 / 全文検索 / ベクトル）。主な機能:
+
+- **処理時間の計測** — すべての操作で `処理時間: N ms` を表示し性能を体感
+- **大容量データのお試し** — 件数を指定して一括投入 → 検索/削除（CRUD）
+- **画面から起動/停止** — 各 DB タブの「▶ 起動 / ■ 停止」で `docker compose` を実行
+- **解説タブ** — 公式ドキュメント・特徴・ユースケース・アーキテクチャ組み込み例
+
+DB は画面から起動できるほか、`make up DB=postgresql` でも起動できます。
+詳細は [app/README.md](app/README.md)。
 
 ## 新しい DB を追加する
 

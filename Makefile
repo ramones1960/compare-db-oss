@@ -9,9 +9,10 @@
 #   make ycsb DB=postgresql WORKLOAD=A  YCSB 共通ワークロードで計測（汎用KVS/RDBMS）
 #   make clean DB=postgresql  停止 + ボリューム削除
 #   make app                  GUI お試しアプリを起動 (http://localhost:8000)
+#   make app-down             GUI お試しアプリを停止
 #   make new-db CATEGORY=relational DB=mariadb  新規DBの雛形を生成
 
-.PHONY: help list up down logs bench ycsb clean app new-db
+.PHONY: help list up down logs bench ycsb clean app app-down new-db
 
 WORKLOAD ?= A
 
@@ -47,8 +48,13 @@ ycsb: _check
 clean: _check
 	cd $(DB_PATH) && docker compose down -v
 
+# 画面からの DB 起動/停止のため、リポジトリをホストと同一パスでマウントする
+# （HOST_REPO_ROOT に絶対パスを渡す）。docker ソケットも共有する（app/docker-compose.yml）。
 app:
-	cd app && docker compose up --build
+	cd app && HOST_REPO_ROOT=$(CURDIR) docker compose up --build
+
+app-down:
+	cd app && HOST_REPO_ROOT=$(CURDIR) docker compose down
 
 new-db:
 	@test -n "$(CATEGORY)" || (echo "ERROR: CATEGORY=<dir> を指定してください (例: relational)"; exit 1)

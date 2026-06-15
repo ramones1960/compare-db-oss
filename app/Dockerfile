@@ -18,9 +18,37 @@ COPY certs/ /usr/local/share/ca-certificates/extra/
 RUN HTTP_PROXY="$HTTP_PROXY" HTTPS_PROXY="$HTTPS_PROXY" NO_PROXY="$NO_PROXY" \
     http_proxy="$http_proxy" https_proxy="$https_proxy" no_proxy="$no_proxy" \
     apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates build-essential gcc \
+        ca-certificates build-essential gcc curl \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# 画面から各DBを起動/停止するための docker CLI + compose プラグインを導入。
+# マウントした docker ソケット越しにホストのデーモンを操作する（自身でデーモンは動かさない）。
+# 取得失敗時もビルドは継続し、機能はサーバ側で検出してグレースフルに無効化される。
+ARG DOCKER_CLI_VERSION=27.3.1
+ARG DOCKER_COMPOSE_VERSION=v2.29.7
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+      amd64) dch=x86_64; cch=x86_64 ;; \
+      arm64) dch=aarch64; cch=aarch64 ;; \
+      *) dch=""; cch="" ;; \
+    esac; \
+    if [ -n "$dch" ]; then \
+      ( HTTP_PROXY="$HTTP_PROXY" HTTPS_PROXY="$HTTPS_PROXY" NO_PROXY="$NO_PROXY" \
+        http_proxy="$http_proxy" https_proxy="$https_proxy" no_proxy="$no_proxy" \
+        curl -fsSL "https://download.docker.com/linux/static/stable/${dch}/docker-${DOCKER_CLI_VERSION}.tgz" \
+          -o /tmp/docker.tgz \
+        && tar -xzf /tmp/docker.tgz -C /tmp \
+        && mv /tmp/docker/docker /usr/local/bin/docker \
+        && mkdir -p /usr/local/lib/docker/cli-plugins \
+        && curl -fsSL "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-linux-${cch}" \
+          -o /usr/local/lib/docker/cli-plugins/docker-compose \
+        && chmod +x /usr/local/lib/docker/cli-plugins/docker-compose \
+        && rm -rf /tmp/docker /tmp/docker.tgz \
+        && docker --version && docker compose version \
+      ) || echo "WARN: docker CLI の取得に失敗。画面からの起動/停止は無効化されます。"; \
+    fi
 
 # pip / requests / Node が共通の CA バンドル（独自CA反映済み）を参照するように
 ENV PIP_CERT=/etc/ssl/certs/ca-certificates.crt \
