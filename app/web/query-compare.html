@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>クロス DB クエリ比較 — compare-db-oss</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>compare-db-oss <span>クロス DB クエリ比較</span></h1>
+    <nav class="topnav">
+      <a href="/">← DBコンソール</a>
+      <a href="/wizard.html">DB選択ウィザード</a>
+      <a href="/tradeoff.html">トレードオフ比較</a>
+      <a href="/patterns-compare.html">パターン比較</a>
+    </nav>
+  </header>
+
+  <div class="page-body">
+    <h2 class="page-title">クロス DB クエリ比較</h2>
+    <p class="page-sub">5つの代表的なデータ操作を、すべての DB の構文で横断比較します。</p>
+
+    <div class="qc-ops" id="qc-ops"></div>
+    <div class="qc-grid" id="qc-grid"></div>
+  </div>
+
+  <script>
+    const OPS = [
+      { id: "select_all", label: "全件取得" },
+      { id: "filter",     label: "条件検索" },
+      { id: "aggregate",  label: "集計" },
+      { id: "insert",     label: "挿入" },
+      { id: "delete",     label: "削除" },
+    ];
+
+    // Each entry: { db, lang, code, note? }
+    const QUERIES = {
+      select_all: [
+        { db: "PostgreSQL",   lang: "sql",    code: "SELECT * FROM users;" },
+        { db: "MySQL",        lang: "sql",    code: "SELECT * FROM users;" },
+        { db: "SQLite",       lang: "sql",    code: "SELECT * FROM users;" },
+        { db: "CockroachDB",  lang: "sql",    code: "SELECT * FROM users;" },
+        { db: "MongoDB",      lang: "nosql",  code: "db.users.find({})" },
+        { db: "Redis",        lang: "nosql",  code: "KEYS user:*\n-- 続いて MGET で値を取得\n-- ※本番で KEYS は避けること", note: "全件スキャンは非推奨" },
+        { db: "Cassandra",    lang: "sql",    code: "SELECT * FROM users;\n-- ※全件スキャンは非推奨（パーティション単位で）", note: "全件スキャン非推奨" },
+        { db: "Neo4j",        lang: "cypher", code: "MATCH (u:User) RETURN u" },
+        { db: "InfluxDB",     lang: "flux",   code: 'from(bucket:"mydb")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == "cpu")' },
+        { db: "TimescaleDB",  lang: "sql",    code: "SELECT * FROM metrics ORDER BY time DESC LIMIT 100;" },
+        { db: "OpenSearch",   lang: "rest",   code: 'GET /users/_search\n{\n  "query": { "match_all": {} }\n}' },
+        { db: "ClickHouse",   lang: "sql",    code: "SELECT * FROM users LIMIT 1000;" },
+        { db: "DuckDB",       lang: "sql",    code: "SELECT * FROM users;" },
+        { db: "Qdrant",       lang: "rest",   code: 'POST /collections/users/points/scroll\n{}' },
+        { db: "pgvector",     lang: "sql",    code: "SELECT * FROM items;" },
+      ],
+      filter: [
+        { db: "PostgreSQL",   lang: "sql",    code: "SELECT * FROM users WHERE id = 101;" },
+        { db: "MySQL",        lang: "sql",    code: "SELECT * FROM users WHERE id = 101;" },
+        { db: "SQLite",       lang: "sql",    code: "SELECT * FROM users WHERE id = 101;" },
+        { db: "CockroachDB",  lang: "sql",    code: "SELECT * FROM users WHERE id = 101;" },
+        { db: "MongoDB",      lang: "nosql",  code: "db.users.find({ id: 101 })" },
+        { db: "Redis",        lang: "nosql",  code: "GET user:101" },
+        { db: "Cassandra",    lang: "sql",    code: "SELECT * FROM users WHERE id = 101;" },
+        { db: "Neo4j",        lang: "cypher", code: "MATCH (u:User {id: 101}) RETURN u" },
+        { db: "InfluxDB",     lang: "flux",   code: 'from(bucket:"mydb")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r.host == "web-1")' },
+        { db: "TimescaleDB",  lang: "sql",    code: "SELECT * FROM metrics WHERE host = 'web-1'\n  ORDER BY time DESC LIMIT 100;" },
+        { db: "OpenSearch",   lang: "rest",   code: 'GET /users/_search\n{\n  "query": { "term": { "id": 101 } }\n}' },
+        { db: "ClickHouse",   lang: "sql",    code: "SELECT * FROM users WHERE id = 101;" },
+        { db: "DuckDB",       lang: "sql",    code: "SELECT * FROM users WHERE id = 101;" },
+        { db: "Qdrant",       lang: "rest",   code: 'POST /collections/users/points/scroll\n{\n  "filter": {\n    "must": [{ "key": "id", "match": { "value": 101 } }]\n  }\n}' },
+        { db: "pgvector",     lang: "sql",    code: "SELECT * FROM items WHERE user_id = 101;" },
+      ],
+      aggregate: [
+        { db: "PostgreSQL",   lang: "sql",    code: "SELECT COUNT(*), SUM(total)\nFROM orders;" },
+        { db: "MySQL",        lang: "sql",    code: "SELECT COUNT(*), SUM(total)\nFROM orders;" },
+        { db: "SQLite",       lang: "sql",    code: "SELECT COUNT(*), SUM(total)\nFROM orders;" },
+        { db: "CockroachDB",  lang: "sql",    code: "SELECT COUNT(*), SUM(total)\nFROM orders;" },
+        { db: "MongoDB",      lang: "nosql",  code: "db.orders.aggregate([\n  { $group: {\n    _id: null,\n    count: { $sum: 1 },\n    total: { $sum: '$total' }\n  }}\n])" },
+        { db: "Redis",        lang: "nosql",  code: "LLEN orders          -- リスト件数\nINCR  counter:orders  -- インクリメントカウンタ" },
+        { db: "Cassandra",    lang: "sql",    code: "SELECT COUNT(*) FROM orders;\n-- ※軽量クエリのみ。重い集計は非推奨" },
+        { db: "Neo4j",        lang: "cypher", code: "MATCH (o:Order)\nRETURN count(o) AS cnt,\n       sum(o.total) AS total" },
+        { db: "InfluxDB",     lang: "flux",   code: 'from(bucket:"mydb")\n  |> range(start: -1d)\n  |> filter(fn: (r) => r._field == "total")\n  |> sum()' },
+        { db: "TimescaleDB",  lang: "sql",    code: "SELECT time_bucket('1h', time) AS hour,\n       SUM(value)\nFROM metrics\nGROUP BY hour ORDER BY hour;" },
+        { db: "OpenSearch",   lang: "rest",   code: 'POST /orders/_search\n{\n  "aggs": {\n    "total_sum": { "sum": { "field": "total" } },\n    "count":     { "value_count": { "field": "id" } }\n  }\n}' },
+        { db: "ClickHouse",   lang: "sql",    code: "SELECT count(), sum(total)\nFROM orders\n-- ⚡ 列指向で最高速" },
+        { db: "DuckDB",       lang: "sql",    code: "SELECT count(*), sum(total)\nFROM orders;" },
+        { db: "Qdrant",       lang: "rest",   code: "-- 集計は直接サポートなし\n-- payload filter + count で件数取得\nPOST /collections/orders/points/count" },
+        { db: "pgvector",     lang: "sql",    code: "SELECT COUNT(*), AVG(total)\nFROM orders;" },
+      ],
+      insert: [
+        { db: "PostgreSQL",   lang: "sql",    code: "INSERT INTO users (name, email)\nVALUES ('Alice', 'alice@example.com');" },
+        { db: "MySQL",        lang: "sql",    code: "INSERT INTO users (name, email)\nVALUES ('Alice', 'alice@example.com');" },
+        { db: "SQLite",       lang: "sql",    code: "INSERT INTO users (name, email)\nVALUES ('Alice', 'alice@example.com');" },
+        { db: "CockroachDB",  lang: "sql",    code: "INSERT INTO users (name, email)\nVALUES ('Alice', 'alice@example.com');" },
+        { db: "MongoDB",      lang: "nosql",  code: 'db.users.insertOne({\n  name: "Alice",\n  email: "alice@example.com",\n  orders: []\n})' },
+        { db: "Redis",        lang: "nosql",  code: 'SET user:101 \'{"name":"Alice","email":"alice@example.com"}\'\nEX 3600   -- TTL 1時間' },
+        { db: "Cassandra",    lang: "sql",    code: "INSERT INTO users (id, name, email)\nVALUES (uuid(), 'Alice', 'alice@example.com');" },
+        { db: "Neo4j",        lang: "cypher", code: "CREATE (:User {\n  id: 101,\n  name: 'Alice',\n  email: 'alice@example.com'\n})" },
+        { db: "InfluxDB",     lang: "flux",   code: "// Line Protocol\ncpu,host=web-1 cpu_pct=45.2,mem_mb=2048i" },
+        { db: "TimescaleDB",  lang: "sql",    code: "INSERT INTO metrics (time, host, value)\nVALUES (NOW(), 'web-1', 45.2);" },
+        { db: "OpenSearch",   lang: "rest",   code: 'PUT /users/_doc/101\n{\n  "name": "Alice",\n  "email": "alice@example.com"\n}' },
+        { db: "ClickHouse",   lang: "sql",    code: "INSERT INTO users (id, name, email)\nVALUES (101, 'Alice', 'alice@example.com');" },
+        { db: "DuckDB",       lang: "sql",    code: "INSERT INTO users (id, name, email)\nVALUES (101, 'Alice', 'alice@example.com');" },
+        { db: "Qdrant",       lang: "rest",   code: 'PUT /collections/users/points\n{\n  "points": [{\n    "id": 101,\n    "vector": [0.1, 0.2, 0.3, 0.4],\n    "payload": { "name": "Alice" }\n  }]\n}' },
+        { db: "pgvector",     lang: "sql",    code: "INSERT INTO items (id, embedding, label)\nVALUES (1, '[0.1,0.2,0.3,0.4]', 'Alice');" },
+      ],
+      delete: [
+        { db: "PostgreSQL",   lang: "sql",    code: "DELETE FROM users WHERE id = 101;" },
+        { db: "MySQL",        lang: "sql",    code: "DELETE FROM users WHERE id = 101;" },
+        { db: "SQLite",       lang: "sql",    code: "DELETE FROM users WHERE id = 101;" },
+        { db: "CockroachDB",  lang: "sql",    code: "DELETE FROM users WHERE id = 101;" },
+        { db: "MongoDB",      lang: "nosql",  code: "db.users.deleteOne({ id: 101 })" },
+        { db: "Redis",        lang: "nosql",  code: "DEL user:101" },
+        { db: "Cassandra",    lang: "sql",    code: "DELETE FROM users WHERE id = 101;" },
+        { db: "Neo4j",        lang: "cypher", code: "MATCH (u:User {id: 101})\nDETACH DELETE u" },
+        { db: "InfluxDB",     lang: "flux",   code: 'DELETE DATA\n  FROM BUCKET "mydb"\n  START 2024-01-01T00:00:00Z\n  STOP  2024-01-02T00:00:00Z\n  WHERE host = "web-1"' },
+        { db: "TimescaleDB",  lang: "sql",    code: "DELETE FROM metrics\nWHERE time < NOW() - INTERVAL '30 days';" },
+        { db: "OpenSearch",   lang: "rest",   code: 'DELETE /users/_doc/101' },
+        { db: "ClickHouse",   lang: "sql",    code: "ALTER TABLE users\nDELETE WHERE id = 101;\n-- ※行削除は非同期・重い操作" },
+        { db: "DuckDB",       lang: "sql",    code: "DELETE FROM users WHERE id = 101;" },
+        { db: "Qdrant",       lang: "rest",   code: 'POST /collections/users/points/delete\n{ "points": [101] }' },
+        { db: "pgvector",     lang: "sql",    code: "DELETE FROM items WHERE id = 101;" },
+      ],
+    };
+
+    let currentOp = "select_all";
+
+    function renderOps() {
+      const container = document.getElementById("qc-ops");
+      OPS.forEach(op => {
+        const btn = document.createElement("button");
+        btn.className = "qc-op-btn" + (op.id === currentOp ? " active" : "");
+        btn.textContent = op.label;
+        btn.onclick = () => {
+          currentOp = op.id;
+          renderOps();
+          renderGrid();
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById("qc-grid");
+      grid.innerHTML = "";
+      const queries = QUERIES[currentOp] || [];
+      queries.forEach(q => {
+        const card = document.createElement("div");
+        card.className = "qc-card";
+        card.innerHTML = `
+          <div class="qc-card-head">
+            <span class="qc-db-name">${q.db}</span>
+            <span class="qc-lang ${q.lang}">${q.lang.toUpperCase()}</span>
+          </div>
+          <pre class="qc-code">${escapeHtml(q.code)}</pre>
+          ${q.note ? `<div class="qc-note">※ ${escapeHtml(q.note)}</div>` : ""}
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+    }
+
+    renderOps();
+    renderGrid();
+  </script>
+</body>
+</html>

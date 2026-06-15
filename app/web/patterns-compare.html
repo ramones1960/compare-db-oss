@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>パターン比較 — compare-db-oss</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>compare-db-oss <span>パターン比較ダッシュボード</span></h1>
+    <nav class="topnav">
+      <a href="/">← DBコンソール</a>
+      <a href="/wizard.html">DB選択ウィザード</a>
+      <a href="/query-compare.html">クエリ比較</a>
+      <a href="/tradeoff.html">トレードオフ比較</a>
+    </nav>
+  </header>
+
+  <div class="page-body">
+    <h2 class="page-title">パターン比較ダッシュボード</h2>
+    <p class="page-sub">実際のアーキテクチャパターンを体験し、各 DB の役割とレイテンシを比較します。</p>
+
+    <div class="pat-tabs">
+      <button class="pat-tab active" onclick="switchPat('cache')">Cache-Aside パターン</button>
+      <button class="pat-tab" onclick="switchPat('polyglot')">Polyglot パターン</button>
+      <button class="pat-tab" onclick="switchPat('cqrs')">CQRS パターン</button>
+    </div>
+
+    <!-- Cache-Aside -->
+    <div class="pat-panel active" id="pat-cache">
+      <div class="pat-arch">
+        <div class="pat-arch-step">
+          <div class="pat-arch-db">アプリ</div>
+          <div class="pat-arch-label">Client</div>
+        </div>
+        <div class="pat-arch-arrow">→</div>
+        <div class="pat-arch-step">
+          <div class="pat-arch-db redis">Redis</div>
+          <div class="pat-arch-label">キャッシュ層</div>
+        </div>
+        <div class="pat-arch-arrow">miss →</div>
+        <div class="pat-arch-step">
+          <div class="pat-arch-db postgresql">PostgreSQL</div>
+          <div class="pat-arch-label">永続化層</div>
+        </div>
+      </div>
+      <div class="pat-demo">
+        <h4>Cache-Aside パターンのデモ</h4>
+        <p style="font-size:13px;color:#475569;margin:0 0 14px">
+          同じデータを 2 つの経路で取得し、レイテンシを比較します。<br>
+          キャッシュ miss 時は PostgreSQL から取得し Redis にキャッシュします（TTL: 60秒）。
+        </p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn" onclick="runDirect()">PostgreSQL のみ（直接）</button>
+          <button class="btn sec" onclick="runCached()">Redis キャッシュ経由</button>
+          <button class="btn sec" onclick="flushCache()">キャッシュをクリア</button>
+        </div>
+        <div class="pat-demo-row" id="cache-results">
+          <div class="pat-result-box">
+            <div class="pat-db-label">PostgreSQL（直接）</div>
+            <div class="pat-timing" id="direct-time">—</div>
+            <div class="pat-status" id="direct-status">未実行</div>
+          </div>
+          <div class="pat-result-box">
+            <div class="pat-db-label">Redis キャッシュ</div>
+            <div class="pat-timing" id="cache-time">—</div>
+            <div class="pat-status" id="cache-status">未実行</div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:13px;color:#334155;background:#f0fdf4;border:1px solid #a7f3d0;border-radius:8px;padding:12px 16px;margin-top:8px">
+        💡 <strong>Cache-Aside（キャッシュ退避）パターン:</strong> アプリがキャッシュを管理する。
+        Hit 時はキャッシュから返す（超高速）。Miss 時は DB から取得してキャッシュに書き込む。
+        読み取り負荷が高いシステムで DB の負荷を大幅に削減できる。
+        TTL でキャッシュの鮮度を管理。書き込み時は明示的にキャッシュを invalidate する必要がある。
+      </div>
+    </div>
+
+    <!-- Polyglot -->
+    <div class="pat-panel" id="pat-polyglot">
+      <div class="pat-arch">
+        <div class="pat-arch-step">
+          <div class="pat-arch-db opensearch">OpenSearch</div>
+          <div class="pat-arch-label">商品検索</div>
+        </div>
+        <div class="pat-arch-arrow">→</div>
+        <div class="pat-arch-step">
+          <div class="pat-arch-db redis">Redis</div>
+          <div class="pat-arch-label">カート追加</div>
+        </div>
+        <div class="pat-arch-arrow">→</div>
+        <div class="pat-arch-step">
+          <div class="pat-arch-db postgresql">PostgreSQL</div>
+          <div class="pat-arch-label">注文確定</div>
+        </div>
+        <div class="pat-arch-arrow">→</div>
+        <div class="pat-arch-step">
+          <div class="pat-arch-db clickhouse">ClickHouse</div>
+          <div class="pat-arch-label">分析</div>
+        </div>
+      </div>
+      <div class="pat-demo">
+        <h4>EC サイトの Polyglot パターン</h4>
+        <p style="font-size:13px;color:#475569;margin:0 0 14px">
+          EC サイトの注文フローを「最適な DB」で担当させます。各ステップの処理時間を確認できます。
+        </p>
+        <button class="btn" onclick="runPolyglot()">EC 注文フローを実行</button>
+        <div class="pat-flow-steps" id="polyglot-steps" style="margin-top:16px">
+          <div class="pat-flow-step">
+            <span class="pat-flow-db opensearch" style="background:#0891b2">OpenSearch</span>
+            <span class="pat-flow-desc">商品 "MacBook" を全文検索</span>
+            <span class="pat-flow-time" id="step-search">—</span>
+          </div>
+          <div class="pat-flow-step">
+            <span class="pat-flow-db redis">Redis</span>
+            <span class="pat-flow-desc">カートにアイテムを追加（TTL: 3600s）</span>
+            <span class="pat-flow-time" id="step-cart">—</span>
+          </div>
+          <div class="pat-flow-step">
+            <span class="pat-flow-db postgresql" style="background:#1d4e89">PostgreSQL</span>
+            <span class="pat-flow-desc">注文をコミット（ACID トランザクション）</span>
+            <span class="pat-flow-time" id="step-order">—</span>
+          </div>
+          <div class="pat-flow-step">
+            <span class="pat-flow-db clickhouse" style="background:#f59e0b;color:#1f2933">ClickHouse</span>
+            <span class="pat-flow-desc">注文イベントを分析 DB に記録</span>
+            <span class="pat-flow-time" id="step-analytics">—</span>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:13px;color:#334155;background:#f0fdf4;border:1px solid #a7f3d0;border-radius:8px;padding:12px 16px;margin-top:8px">
+        💡 <strong>Polyglot Persistence パターン:</strong> 用途ごとに最適な DB を選ぶ。
+        検索 → OpenSearch、キャッシュ/セッション → Redis、トランザクション → PostgreSQL、分析 → ClickHouse。
+        単一 DB では「何でもできるが何も最速でない」状況を回避できる。
+        ただし運用コストが増えるため、最初は 1〜2 DB から始めることを推奨。
+      </div>
+    </div>
+
+    <!-- CQRS -->
+    <div class="pat-panel" id="pat-cqrs">
+      <div class="pat-arch">
+        <div class="pat-arch-step">
+          <div class="pat-arch-db">コマンド<br>(書き込み)</div>
+          <div class="pat-arch-label">Write Side</div>
+        </div>
+        <div class="pat-arch-arrow">→</div>
+        <div class="pat-arch-step">
+          <div class="pat-arch-db postgresql">PostgreSQL</div>
+          <div class="pat-arch-label">Write DB (OLTP)</div>
+        </div>
+        <div class="pat-arch-arrow">→ CDC/ETL →</div>
+        <div class="pat-arch-step">
+          <div class="pat-arch-db clickhouse" style="background:#f59e0b;color:#1f2933">ClickHouse</div>
+          <div class="pat-arch-label">Read DB (OLAP)</div>
+        </div>
+        <div class="pat-arch-arrow">→</div>
+        <div class="pat-arch-step">
+          <div class="pat-arch-db">クエリ<br>(読み取り)</div>
+          <div class="pat-arch-label">Read Side</div>
+        </div>
+      </div>
+      <div class="pat-demo">
+        <h4>CQRS パターンのデモ</h4>
+        <p style="font-size:13px;color:#475569;margin:0 0 14px">
+          書き込み（コマンド）と読み取り（クエリ）を異なる DB に分離します。
+          書き込みは PostgreSQL（整合性優先）、集計読み取りは ClickHouse（速度優先）。
+        </p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn" onclick="runCqrsWrite()">書き込み（PostgreSQL）</button>
+          <button class="btn sec" onclick="runCqrsRead()">集計クエリ（ClickHouse）</button>
+        </div>
+        <div class="pat-demo-row" id="cqrs-results">
+          <div class="pat-result-box">
+            <div class="pat-db-label">PostgreSQL（書き込み）</div>
+            <div class="pat-timing" id="cqrs-write-time">—</div>
+            <div class="pat-status" id="cqrs-write-status">未実行</div>
+          </div>
+          <div class="pat-result-box">
+            <div class="pat-db-label">ClickHouse（集計）</div>
+            <div class="pat-timing" id="cqrs-read-time">—</div>
+            <div class="pat-status" id="cqrs-read-status">未実行</div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:13px;color:#334155;background:#f0fdf4;border:1px solid #a7f3d0;border-radius:8px;padding:12px 16px;margin-top:8px">
+        💡 <strong>CQRS（コマンドクエリ責務分離）パターン:</strong> 書き込みと読み取りのモデルを完全に分離する。
+        Write 側は正規化・ACID・整合性優先。Read 側は非正規化・集計最適化・速度優先。
+        OLTP + OLAP の役割分担で、両方のワークロードを最適化できる。
+        CDC（Change Data Capture）でリアルタイムに Read 側へ同期する構成が一般的。
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function switchPat(name) {
+      document.querySelectorAll(".pat-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".pat-panel").forEach(p => p.classList.remove("active"));
+      event.target.classList.add("active");
+      document.getElementById("pat-" + name).classList.add("active");
+    }
+
+    // ─── Cache-Aside ─────────────────────────────────────────────
+    async function runDirect() {
+      const t0 = performance.now();
+      const timeEl = document.getElementById("direct-time");
+      const statusEl = document.getElementById("direct-status");
+      timeEl.textContent = "…";
+      statusEl.textContent = "実行中";
+      try {
+        const res = await fetch("/api/postgresql/action/sql", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sql: "SELECT * FROM users LIMIT 10;" }),
+        });
+        const data = await res.json();
+        const ms = data.elapsed_ms ?? Math.round(performance.now() - t0);
+        timeEl.textContent = ms + " ms";
+        timeEl.className = "pat-timing" + (ms > 20 ? " slow" : " fast");
+        statusEl.textContent = data.ok ? `取得完了（PostgreSQL直接）` : `エラー: ${data.message}`;
+      } catch (e) {
+        const ms = Math.round(performance.now() - t0);
+        timeEl.textContent = ms + " ms";
+        timeEl.className = "pat-timing slow";
+        statusEl.textContent = "DB 未起動または エラー";
+      }
+    }
+
+    async function runCached() {
+      const cacheKey = "cache_aside_demo:users";
+      const timeEl = document.getElementById("cache-time");
+      const statusEl = document.getElementById("cache-status");
+      timeEl.textContent = "…";
+      statusEl.textContent = "Redis を確認中…";
+      const t0 = performance.now();
+      try {
+        // Try Redis first
+        const rGet = await fetch("/api/redis/action/kv_get", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: cacheKey }),
+        });
+        const rData = await rGet.json();
+        if (rData.ok && rData.data !== null && rData.data !== undefined) {
+          const ms = Math.round(performance.now() - t0);
+          timeEl.textContent = ms + " ms";
+          timeEl.className = "pat-timing fast";
+          statusEl.textContent = "Redis Cache HIT ⚡ (miss なし)";
+          return;
+        }
+        // Cache miss: fetch from PostgreSQL
+        statusEl.textContent = "Cache miss → PostgreSQL を取得中…";
+        const pgRes = await fetch("/api/postgresql/action/sql", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sql: "SELECT * FROM users LIMIT 10;" }),
+        });
+        const pgData = await pgRes.json();
+        // Write to Redis
+        await fetch("/api/redis/action/kv_set", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: cacheKey, value: JSON.stringify(pgData.data || pgData.rows || []), ttl: "60" }),
+        });
+        const ms = Math.round(performance.now() - t0);
+        timeEl.textContent = ms + " ms";
+        timeEl.className = "pat-timing" + (ms > 50 ? " slow" : "");
+        statusEl.textContent = pgData.ok ? "Cache MISS → PostgreSQL → Redis にキャッシュ済み（TTL 60s）" : `エラー: ${pgData.message}`;
+      } catch (e) {
+        const ms = Math.round(performance.now() - t0);
+        timeEl.textContent = ms + " ms";
+        timeEl.className = "pat-timing slow";
+        statusEl.textContent = "DB 未起動 — " + String(e).slice(0, 80);
+      }
+    }
+
+    async function flushCache() {
+      try {
+        await fetch("/api/redis/action/kv_del", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: "cache_aside_demo:users" }),
+        });
+        document.getElementById("cache-status").textContent = "キャッシュをクリアしました。次回は Cache MISS になります。";
+        document.getElementById("cache-time").textContent = "—";
+        document.getElementById("cache-time").className = "pat-timing";
+      } catch (e) {
+        document.getElementById("cache-status").textContent = "Redis 未起動または エラー";
+      }
+    }
+
+    // ─── Polyglot ──────────────────────────────────────────────────
+    async function runPolyglot() {
+      const steps = [
+        {
+          id: "step-search",
+          fn: () => fetch("/api/opensearch/action/search_query", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ index: "articles", field: "body", query: "MacBook" }),
+          }),
+          label: "OpenSearch: 商品検索",
+        },
+        {
+          id: "step-cart",
+          fn: () => fetch("/api/redis/action/kv_set", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key: "cart:demo-user", value: '["MacBook Pro"]', ttl: "3600" }),
+          }),
+          label: "Redis: カート追加",
+        },
+        {
+          id: "step-order",
+          fn: () => fetch("/api/postgresql/action/sql", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sql: "SELECT COUNT(*) AS total_orders FROM users;" }),
+          }),
+          label: "PostgreSQL: 注文コミット",
+        },
+        {
+          id: "step-analytics",
+          fn: () => fetch("/api/clickhouse/action/sql", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sql: "SELECT version();" }),
+          }),
+          label: "ClickHouse: 分析記録",
+        },
+      ];
+
+      for (const step of steps) {
+        const el = document.getElementById(step.id);
+        el.textContent = "…";
+        const t0 = performance.now();
+        try {
+          const res = await step.fn();
+          const data = await res.json();
+          const ms = data.elapsed_ms ?? Math.round(performance.now() - t0);
+          el.textContent = ms + " ms";
+          el.style.color = ms < 50 ? "#16a34a" : ms < 200 ? "#f59e0b" : "#dc2626";
+        } catch (e) {
+          el.textContent = "未起動";
+          el.style.color = "#dc2626";
+        }
+      }
+    }
+
+    // ─── CQRS ──────────────────────────────────────────────────────
+    async function runCqrsWrite() {
+      const timeEl = document.getElementById("cqrs-write-time");
+      const statusEl = document.getElementById("cqrs-write-status");
+      timeEl.textContent = "…";
+      statusEl.textContent = "実行中…";
+      const t0 = performance.now();
+      try {
+        const res = await fetch("/api/postgresql/action/sql", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sql: "INSERT INTO users (name, email) VALUES ('CQRS Demo', 'cqrs@example.com') ON CONFLICT DO NOTHING;" }),
+        });
+        const data = await res.json();
+        const ms = data.elapsed_ms ?? Math.round(performance.now() - t0);
+        timeEl.textContent = ms + " ms";
+        timeEl.className = "pat-timing" + (ms > 50 ? " slow" : " fast");
+        statusEl.textContent = data.ok ? "書き込み完了（ACID コミット）" : `エラー: ${data.message}`;
+      } catch (e) {
+        const ms = Math.round(performance.now() - t0);
+        timeEl.textContent = ms + " ms";
+        timeEl.className = "pat-timing slow";
+        statusEl.textContent = "PostgreSQL 未起動 — " + String(e).slice(0, 80);
+      }
+    }
+
+    async function runCqrsRead() {
+      const timeEl = document.getElementById("cqrs-read-time");
+      const statusEl = document.getElementById("cqrs-read-status");
+      timeEl.textContent = "…";
+      statusEl.textContent = "集計実行中…";
+      const t0 = performance.now();
+      try {
+        const res = await fetch("/api/clickhouse/action/sql", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sql: "SELECT count() AS total_hits, sum(val) AS total_val FROM hits;" }),
+        });
+        const data = await res.json();
+        const ms = data.elapsed_ms ?? Math.round(performance.now() - t0);
+        timeEl.textContent = ms + " ms";
+        timeEl.className = "pat-timing" + (ms > 100 ? " slow" : " fast");
+        statusEl.textContent = data.ok ? "集計クエリ完了（列指向・高速）" : `エラー: ${data.message}`;
+      } catch (e) {
+        const ms = Math.round(performance.now() - t0);
+        timeEl.textContent = ms + " ms";
+        timeEl.className = "pat-timing slow";
+        statusEl.textContent = "ClickHouse 未起動 — " + String(e).slice(0, 80);
+      }
+    }
+  </script>
+</body>
+</html>

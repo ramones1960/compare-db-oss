@@ -25,3 +25,6 @@ __pycache__/
 # 独自CA証明書（環境依存・非コミット）
 app/certs/*.crt
 app/certs/*.pem
+
+# Claude Code worktree management
+.claude/

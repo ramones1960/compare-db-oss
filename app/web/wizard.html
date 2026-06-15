@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DB 選択ウィザード — compare-db-oss</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>compare-db-oss <span>DB 選択ウィザード</span></h1>
+    <nav class="topnav">
+      <a href="/">← DBコンソール</a>
+      <a href="/query-compare.html">クエリ比較</a>
+      <a href="/tradeoff.html">トレードオフ比較</a>
+      <a href="/patterns-compare.html">パターン比較</a>
+    </nav>
+  </header>
+
+  <div class="page-body">
+    <h2 class="page-title">DB 選択ウィザード</h2>
+    <p class="page-sub">5つの質問に答えて、あなたのユースケースに最適なデータベースを見つけましょう。</p>
+
+    <div class="wiz-container">
+      <!-- Progress dots -->
+      <div class="wiz-progress" id="wiz-progress">
+        <div class="wiz-dot current" data-step="0"></div>
+        <div class="wiz-dot" data-step="1"></div>
+        <div class="wiz-dot" data-step="2"></div>
+        <div class="wiz-dot" data-step="3"></div>
+        <div class="wiz-dot" data-step="4"></div>
+      </div>
+
+      <!-- Step 0: データ構造 -->
+      <div class="wiz-step active" id="step-0">
+        <div class="wiz-q">Q1. データ構造は？</div>
+        <div class="wiz-choices">
+          <div class="wiz-choice" data-val="A">
+            <span class="wiz-choice-key">A</span>
+            <span class="wiz-choice-text">固定スキーマ・リレーション（ユーザー, 注文, 在庫など）</span>
+          </div>
+          <div class="wiz-choice" data-val="B">
+            <span class="wiz-choice-key">B</span>
+            <span class="wiz-choice-text">柔軟・ネスト・配列（スキーマが変わりやすい / JSON ライク）</span>
+          </div>
+          <div class="wiz-choice" data-val="C">
+            <span class="wiz-choice-key">C</span>
+            <span class="wiz-choice-text">キーで直接取得（セッション・キャッシュ・ランキング）</span>
+          </div>
+          <div class="wiz-choice" data-val="D">
+            <span class="wiz-choice-key">D</span>
+            <span class="wiz-choice-text">グラフ・つながり（ソーシャル・推薦・不正検知）</span>
+          </div>
+          <div class="wiz-choice" data-val="E">
+            <span class="wiz-choice-key">E</span>
+            <span class="wiz-choice-text">時系列データ（メトリクス・IoT・センサー）</span>
+          </div>
+          <div class="wiz-choice" data-val="F">
+            <span class="wiz-choice-key">F</span>
+            <span class="wiz-choice-text">テキスト全文検索（商品検索・ログ解析・オートコンプリート）</span>
+          </div>
+          <div class="wiz-choice" data-val="G">
+            <span class="wiz-choice-key">G</span>
+            <span class="wiz-choice-text">大量集計・分析（BI・レポート・行動ログ集計）</span>
+          </div>
+          <div class="wiz-choice" data-val="H">
+            <span class="wiz-choice-key">H</span>
+            <span class="wiz-choice-text">AI・意味検索（RAG・類似画像・推薦・ベクトル検索）</span>
+          </div>
+        </div>
+        <div class="wiz-nav">
+          <span style="color:#94a3b8;font-size:13px">1 / 5</span>
+        </div>
+      </div>
+
+      <!-- Step 1: スケール要件 -->
+      <div class="wiz-step" id="step-1">
+        <div class="wiz-q">Q2. スケール要件は？</div>
+        <div class="wiz-choices">
+          <div class="wiz-choice" data-val="A">
+            <span class="wiz-choice-key">A</span>
+            <span class="wiz-choice-text">単一サーバで十分（〜数十万レコード・中小規模）</span>
+          </div>
+          <div class="wiz-choice" data-val="B">
+            <span class="wiz-choice-key">B</span>
+            <span class="wiz-choice-text">水平スケール（複数サーバ・大量データ・高トラフィック）が必要</span>
+          </div>
+        </div>
+        <div class="wiz-nav">
+          <button class="btn sec" onclick="prevStep()">← 前の質問</button>
+          <span style="color:#94a3b8;font-size:13px">2 / 5</span>
+        </div>
+      </div>
+
+      <!-- Step 2: 読み書き比率 -->
+      <div class="wiz-step" id="step-2">
+        <div class="wiz-q">Q3. 読み書き比率は？</div>
+        <div class="wiz-choices">
+          <div class="wiz-choice" data-val="A">
+            <span class="wiz-choice-key">A</span>
+            <span class="wiz-choice-text">読み取り中心（読み 7 : 書き 3 以上）— Web 閲覧・参照系</span>
+          </div>
+          <div class="wiz-choice" data-val="B">
+            <span class="wiz-choice-key">B</span>
+            <span class="wiz-choice-text">均等（読み 5 : 書き 5 前後）— 汎用 CRUD</span>
+          </div>
+          <div class="wiz-choice" data-val="C">
+            <span class="wiz-choice-key">C</span>
+            <span class="wiz-choice-text">書き込み中心（書き 7 : 読み 3 以上）— イベント・ログ収集</span>
+          </div>
+          <div class="wiz-choice" data-val="D">
+            <span class="wiz-choice-key">D</span>
+            <span class="wiz-choice-text">分析専用（書き込みバッチ + 集計読み取り）— BI・DWH</span>
+          </div>
+        </div>
+        <div class="wiz-nav">
+          <button class="btn sec" onclick="prevStep()">← 前の質問</button>
+          <span style="color:#94a3b8;font-size:13px">3 / 5</span>
+        </div>
+      </div>
+
+      <!-- Step 3: 整合性 -->
+      <div class="wiz-step" id="step-3">
+        <div class="wiz-q">Q4. 整合性要件は？</div>
+        <div class="wiz-choices">
+          <div class="wiz-choice" data-val="A">
+            <span class="wiz-choice-key">A</span>
+            <span class="wiz-choice-text">強整合性 (ACID) — 金融・決済・在庫管理など</span>
+          </div>
+          <div class="wiz-choice" data-val="B">
+            <span class="wiz-choice-key">B</span>
+            <span class="wiz-choice-text">結果整合で問題ない — SNS・ログ・アクティビティフィード</span>
+          </div>
+        </div>
+        <div class="wiz-nav">
+          <button class="btn sec" onclick="prevStep()">← 前の質問</button>
+          <span style="color:#94a3b8;font-size:13px">4 / 5</span>
+        </div>
+      </div>
+
+      <!-- Step 4: クエリパターン -->
+      <div class="wiz-step" id="step-4">
+        <div class="wiz-q">Q5. クエリパターンは？</div>
+        <div class="wiz-choices">
+          <div class="wiz-choice" data-val="A">
+            <span class="wiz-choice-key">A</span>
+            <span class="wiz-choice-text">複雑な JOIN・集計・サブクエリ</span>
+          </div>
+          <div class="wiz-choice" data-val="B">
+            <span class="wiz-choice-key">B</span>
+            <span class="wiz-choice-text">単純な KV・プライマリキー検索（超高速・シンプル）</span>
+          </div>
+          <div class="wiz-choice" data-val="C">
+            <span class="wiz-choice-key">C</span>
+            <span class="wiz-choice-text">全文検索・スコアリング・ファセット</span>
+          </div>
+          <div class="wiz-choice" data-val="D">
+            <span class="wiz-choice-key">D</span>
+            <span class="wiz-choice-text">大量集計・BI・ダッシュボード・レポート</span>
+          </div>
+          <div class="wiz-choice" data-val="E">
+            <span class="wiz-choice-key">E</span>
+            <span class="wiz-choice-text">類似検索・ベクトル近傍・意味的マッチング</span>
+          </div>
+        </div>
+        <div class="wiz-nav">
+          <button class="btn sec" onclick="prevStep()">← 前の質問</button>
+          <span style="color:#94a3b8;font-size:13px">5 / 5</span>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div class="wiz-result" id="wiz-result">
+        <div class="wiz-result-title">あなたへの推薦 DB トップ3</div>
+        <div class="wiz-rec-list" id="wiz-rec-list"></div>
+        <div>
+          <button class="btn sec" onclick="restart()">やり直す</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DB_META = {
+      postgresql:  { name: "PostgreSQL",   cat: "リレーショナル",  reason: "ACID・豊富な SQL・拡張エコシステム。汎用 RDBMS のデファクト。" },
+      mysql:       { name: "MySQL",         cat: "リレーショナル",  reason: "Web で最も普及。シンプルで高速、運用ノウハウが豊富。" },
+      sqlite:      { name: "SQLite",        cat: "リレーショナル",  reason: "サーバ不要・単一ファイル。小規模・組み込み・ローカル用途に最適。" },
+      mongodb:     { name: "MongoDB",       cat: "ドキュメント",    reason: "スキーマレス JSON。スペックが流動的な Web アプリに。" },
+      redis:       { name: "Redis",         cat: "キーバリュー",    reason: "インメモリでサブミリ秒。キャッシュ・セッション・ランキングに最強。" },
+      cassandra:   { name: "Cassandra",     cat: "ワイドカラム",    reason: "マスターレスで大量書き込み。地理分散・高可用に。" },
+      neo4j:       { name: "Neo4j",         cat: "グラフ",          reason: "ノード/エッジで関係を表現。多段 JOIN を直感的に解決。" },
+      cockroachdb: { name: "CockroachDB",   cat: "分散SQL",         reason: "PostgreSQL 互換・水平スケール・強整合。グローバル SaaS に。" },
+      influxdb:    { name: "InfluxDB",      cat: "時系列",          reason: "メトリクス/IoT 特化。高頻度書き込み・保持ポリシー・ダウンサンプリング。" },
+      timescaledb: { name: "TimescaleDB",   cat: "時系列",          reason: "PostgreSQL 互換の時系列 DB。SQL を捨てずに時系列を扱いたい場合に。" },
+      opensearch:  { name: "OpenSearch",    cat: "全文検索",        reason: "転置インデックスで全文検索・ログ分析。スコアリングが得意。" },
+      clickhouse:  { name: "ClickHouse",    cat: "OLAP",            reason: "列指向で集計が超高速。数十億行のイベント分析に。" },
+      duckdb:      { name: "DuckDB",        cat: "OLAP",            reason: "インプロセスの分析 SQL。Parquet を直接クエリ・ローカル分析に最適。" },
+      qdrant:      { name: "Qdrant",        cat: "ベクトル",        reason: "HNSW で高速 ANN。RAG・類似画像・推薦システムのバックエンドに。" },
+      pgvector:    { name: "pgvector",      cat: "ベクトル",        reason: "PostgreSQL に類似検索を追加。DB を増やさず RAG を実装。" },
+    };
+
+    let currentStep = 0;
+    const answers = [null, null, null, null, null];
+    const totalSteps = 5;
+
+    function updateProgress() {
+      document.querySelectorAll(".wiz-dot").forEach((dot, i) => {
+        dot.className = "wiz-dot";
+        if (i < currentStep) dot.classList.add("done");
+        else if (i === currentStep) dot.classList.add("current");
+      });
+    }
+
+    function showStep(n) {
+      document.querySelectorAll(".wiz-step").forEach(el => el.classList.remove("active"));
+      document.getElementById("wiz-result").classList.remove("active");
+      const step = document.getElementById("step-" + n);
+      if (step) step.classList.add("active");
+      // restore selection
+      if (answers[n]) {
+        step.querySelectorAll(".wiz-choice").forEach(ch => {
+          ch.classList.toggle("selected", ch.dataset.val === answers[n]);
+        });
+      }
+      updateProgress();
+    }
+
+    function nextStep(val) {
+      answers[currentStep] = val;
+      currentStep++;
+      if (currentStep >= totalSteps) {
+        showResult();
+      } else {
+        showStep(currentStep);
+      }
+    }
+
+    function prevStep() {
+      if (currentStep > 0) {
+        currentStep--;
+        showStep(currentStep);
+      }
+    }
+
+    function showResult() {
+      document.querySelectorAll(".wiz-step").forEach(el => el.classList.remove("active"));
+      document.getElementById("wiz-progress").style.display = "none";
+      const result = document.getElementById("wiz-result");
+      result.classList.add("active");
+
+      const recs = recommend(answers);
+      const list = document.getElementById("wiz-rec-list");
+      list.innerHTML = "";
+      const ranks = ["1", "2", "3"];
+      recs.forEach((r, i) => {
+        const meta = DB_META[r.key] || { name: r.key, cat: "", reason: "" };
+        const card = document.createElement("div");
+        card.className = "wiz-rec-card";
+        card.innerHTML = `
+          <div class="wiz-rank">#${ranks[i]}</div>
+          <div class="wiz-rec-info">
+            <div class="wiz-rec-name">${meta.name} <span style="font-size:12px;font-weight:400;color:#64748b">${meta.cat}</span></div>
+            <div class="wiz-rec-reason">${meta.reason}</div>
+            <div class="wiz-rec-score">マッチスコア: ${r.score}点</div>
+            <div class="wiz-rec-actions">
+              <a class="btn" style="text-decoration:none;font-size:13px" href="/?db=${r.key}">このDBを試す →</a>
+            </div>
+          </div>`;
+        list.appendChild(card);
+      });
+    }
+
+    function restart() {
+      currentStep = 0;
+      for (let i = 0; i < answers.length; i++) answers[i] = null;
+      document.getElementById("wiz-progress").style.display = "flex";
+      document.getElementById("wiz-result").classList.remove("active");
+      showStep(0);
+    }
+
+    function recommend(answers) {
+      const scores = { postgresql:0, mysql:0, sqlite:0, mongodb:0, redis:0,
+        cassandra:0, neo4j:0, cockroachdb:0, influxdb:0, timescaledb:0,
+        opensearch:0, clickhouse:0, duckdb:0, qdrant:0, pgvector:0 };
+
+      const q1 = answers[0];
+      if (q1 === 'A') { scores.postgresql+=4; scores.mysql+=3; scores.sqlite+=2; scores.cockroachdb+=2; }
+      if (q1 === 'B') { scores.mongodb+=4; scores.postgresql+=1; }
+      if (q1 === 'C') { scores.redis+=4; scores.mongodb+=1; }
+      if (q1 === 'D') { scores.neo4j+=5; }
+      if (q1 === 'E') { scores.influxdb+=4; scores.timescaledb+=4; scores.cassandra+=2; }
+      if (q1 === 'F') { scores.opensearch+=5; scores.postgresql+=1; }
+      if (q1 === 'G') { scores.clickhouse+=5; scores.duckdb+=4; scores.timescaledb+=2; }
+      if (q1 === 'H') { scores.qdrant+=5; scores.pgvector+=4; scores.opensearch+=1; }
+
+      const q2 = answers[1];
+      if (q2 === 'A') { scores.postgresql+=1; scores.mysql+=1; scores.sqlite+=3; scores.duckdb+=2; }
+      if (q2 === 'B') { scores.cockroachdb+=2; scores.cassandra+=2; scores.mongodb+=1; scores.opensearch+=1; scores.clickhouse+=1; }
+
+      const q3 = answers[2];
+      if (q3 === 'A') { scores.redis+=2; scores.postgresql+=1; scores.mysql+=1; }
+      if (q3 === 'B') { scores.postgresql+=1; scores.mysql+=1; }
+      if (q3 === 'C') { scores.cassandra+=2; scores.redis+=1; scores.influxdb+=1; }
+      if (q3 === 'D') { scores.clickhouse+=2; scores.duckdb+=2; }
+
+      const q4 = answers[3];
+      if (q4 === 'A') { scores.postgresql+=2; scores.mysql+=1; scores.cockroachdb+=2; scores.timescaledb+=1; scores.duckdb+=1; }
+      if (q4 === 'B') { scores.cassandra+=1; scores.redis+=1; scores.mongodb+=1; scores.opensearch+=1; }
+
+      const q5 = answers[4];
+      if (q5 === 'A') { scores.postgresql+=2; scores.mysql+=1; }
+      if (q5 === 'B') { scores.redis+=2; scores.mongodb+=1; }
+      if (q5 === 'C') { scores.opensearch+=3; }
+      if (q5 === 'D') { scores.clickhouse+=3; scores.duckdb+=2; }
+      if (q5 === 'E') { scores.qdrant+=3; scores.pgvector+=2; }
+
+      return Object.entries(scores).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>({key:k,score:v}));
+    }
+
+    // Wire up choice clicks
+    document.querySelectorAll(".wiz-choice").forEach(choice => {
+      choice.addEventListener("click", () => {
+        const step = choice.closest(".wiz-step");
+        step.querySelectorAll(".wiz-choice").forEach(c => c.classList.remove("selected"));
+        choice.classList.add("selected");
+        setTimeout(() => nextStep(choice.dataset.val), 180);
+      });
+    });
+
+    showStep(0);
+  </script>
+</body>
+</html>

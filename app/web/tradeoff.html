@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>トレードオフ比較 — compare-db-oss</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>compare-db-oss <span>トレードオフ比較</span></h1>
+    <nav class="topnav">
+      <a href="/">← DBコンソール</a>
+      <a href="/wizard.html">DB選択ウィザード</a>
+      <a href="/query-compare.html">クエリ比較</a>
+      <a href="/patterns-compare.html">パターン比較</a>
+    </nav>
+  </header>
+
+  <div class="page-body">
+    <h2 class="page-title">トレードオフ レーダーチャート比較</h2>
+    <p class="page-sub">複数の DB を選んでレーダーチャートで特性を比較しましょう。最大 6 つまで選択できます。</p>
+
+    <div class="tf-db-chips" id="tf-chips"></div>
+
+    <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start">
+      <div>
+        <div class="tf-canvas-wrap">
+          <canvas id="tf-canvas" width="480" height="400"></canvas>
+        </div>
+        <div class="tf-legend" id="tf-legend"></div>
+      </div>
+      <div style="flex:1;min-width:300px">
+        <div class="tf-table-wrap">
+          <table class="tf-compare-tbl" id="tf-table">
+            <thead>
+              <tr>
+                <th>DB</th>
+                <th>書き込み</th>
+                <th>読み取り</th>
+                <th>クエリ柔軟性</th>
+                <th>水平スケール</th>
+                <th>整合性</th>
+                <th>運用容易さ</th>
+              </tr>
+            </thead>
+            <tbody id="tf-tbody"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:16px;font-size:12px;color:#64748b;line-height:1.8">
+          <strong>スコア説明 (1〜5)</strong><br>
+          書き込み速度: 高頻度挿入のスループット<br>
+          読み取り速度: KV・プライマリキー参照のレイテンシ<br>
+          クエリ柔軟性: JOIN・集計・全文検索の表現力<br>
+          水平スケール: 複数ノードへの分散・シャーディング<br>
+          整合性: ACID・強整合のサポートレベル<br>
+          運用容易さ: 設定・監視・バックアップのシンプルさ
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DB_SCORES = {
+      axes: ["書き込み速度", "読み取り速度", "クエリ柔軟性", "水平スケール", "整合性", "運用容易さ"],
+      postgresql:  [3, 4, 5, 2, 5, 4],
+      mysql:       [3, 4, 4, 2, 5, 4],
+      sqlite:      [2, 5, 4, 1, 5, 5],
+      mongodb:     [4, 4, 4, 4, 3, 4],
+      redis:       [5, 5, 2, 3, 2, 4],
+      cassandra:   [5, 3, 2, 5, 2, 2],
+      neo4j:       [3, 4, 4, 2, 5, 3],
+      cockroachdb: [3, 3, 5, 5, 5, 2],
+      influxdb:    [5, 4, 2, 4, 2, 4],
+      timescaledb: [4, 4, 5, 2, 5, 3],
+      opensearch:  [4, 5, 3, 4, 2, 3],
+      clickhouse:  [5, 5, 3, 4, 2, 3],
+      duckdb:      [3, 5, 5, 1, 5, 5],
+      qdrant:      [4, 5, 2, 4, 2, 4],
+      pgvector:    [3, 4, 5, 2, 5, 5],
+    };
+
+    const DB_NAMES = {
+      postgresql: "PostgreSQL", mysql: "MySQL", sqlite: "SQLite",
+      mongodb: "MongoDB", redis: "Redis", cassandra: "Cassandra",
+      neo4j: "Neo4j", cockroachdb: "CockroachDB", influxdb: "InfluxDB",
+      timescaledb: "TimescaleDB", opensearch: "OpenSearch", clickhouse: "ClickHouse",
+      duckdb: "DuckDB", qdrant: "Qdrant", pgvector: "pgvector",
+    };
+
+    const PALETTE = [
+      "#4f46e5", "#dc2626", "#16a34a", "#f59e0b", "#0891b2", "#7c3aed",
+    ];
+
+    let selected = ["postgresql", "redis", "mongodb"];
+    const MAX_SEL = 6;
+
+    function buildChips() {
+      const container = document.getElementById("tf-chips");
+      container.innerHTML = "";
+      Object.keys(DB_SCORES).filter(k => k !== "axes").forEach(key => {
+        const chip = document.createElement("div");
+        chip.className = "tf-chip" + (selected.includes(key) ? " sel" : "");
+        chip.textContent = DB_NAMES[key];
+        chip.onclick = () => toggleDB(key);
+        container.appendChild(chip);
+      });
+    }
+
+    function toggleDB(key) {
+      const idx = selected.indexOf(key);
+      if (idx >= 0) {
+        selected.splice(idx, 1);
+      } else {
+        if (selected.length >= MAX_SEL) {
+          alert(`最大 ${MAX_SEL} つまで選択できます。`);
+          return;
+        }
+        selected.push(key);
+      }
+      buildChips();
+      render();
+    }
+
+    function render() {
+      renderLegend();
+      renderTable();
+      drawChart();
+    }
+
+    function renderLegend() {
+      const leg = document.getElementById("tf-legend");
+      leg.innerHTML = "";
+      selected.forEach((key, i) => {
+        const item = document.createElement("div");
+        item.className = "tf-legend-item";
+        item.innerHTML = `<div class="tf-legend-dot" style="background:${PALETTE[i % PALETTE.length]}"></div>
+          <span>${DB_NAMES[key]}</span>`;
+        leg.appendChild(item);
+      });
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById("tf-tbody");
+      tbody.innerHTML = "";
+      selected.forEach((key, i) => {
+        const s = DB_SCORES[key];
+        const color = PALETTE[i % PALETTE.length];
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td style="color:${color};font-weight:700">${DB_NAMES[key]}</td>` +
+          s.map(v => `<td style="text-align:center">${"★".repeat(v)}${"☆".repeat(5-v)}</td>`).join("");
+        tbody.appendChild(tr);
+      });
+    }
+
+    function drawChart() {
+      const canvas = document.getElementById("tf-canvas");
+      const ctx = canvas.getContext("2d");
+      const W = canvas.width, H = canvas.height;
+      const cx = W / 2, cy = H / 2;
+      const R = Math.min(W, H) * 0.32;
+      const axes = DB_SCORES.axes;
+      const n = axes.length;
+      const maxVal = 5;
+
+      ctx.clearRect(0, 0, W, H);
+
+      // Grid rings
+      for (let ring = 1; ring <= maxVal; ring++) {
+        const r = (ring / maxVal) * R;
+        ctx.beginPath();
+        for (let i = 0; i < n; i++) {
+          const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+          const x = cx + r * Math.cos(angle);
+          const y = cy + r * Math.sin(angle);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.strokeStyle = ring === maxVal ? "#c7d2fe" : "#e2e8f0";
+        ctx.lineWidth = ring === maxVal ? 1.5 : 1;
+        ctx.stroke();
+        // Ring label
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = "10px system-ui";
+        ctx.textAlign = "left";
+        ctx.fillText(String(ring), cx + 3, cy - r + 11);
+      }
+
+      // Axis lines
+      for (let i = 0; i < n; i++) {
+        const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + R * Math.cos(angle), cy + R * Math.sin(angle));
+        ctx.strokeStyle = "#e2e8f0";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      // Data polygons
+      selected.forEach((key, si) => {
+        const scores = DB_SCORES[key];
+        const color = PALETTE[si % PALETTE.length];
+        ctx.beginPath();
+        for (let i = 0; i < n; i++) {
+          const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+          const r = (scores[i] / maxVal) * R;
+          const x = cx + r * Math.cos(angle);
+          const y = cy + r * Math.sin(angle);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = color + "22";
+        ctx.fill();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        // Dots
+        for (let i = 0; i < n; i++) {
+          const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+          const r = (scores[i] / maxVal) * R;
+          ctx.beginPath();
+          ctx.arc(cx + r * Math.cos(angle), cy + r * Math.sin(angle), 4, 0, 2 * Math.PI);
+          ctx.fillStyle = color;
+          ctx.fill();
+        }
+      });
+
+      // Axis labels (last, on top)
+      ctx.fillStyle = "#334155";
+      ctx.font = "bold 11px system-ui";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      for (let i = 0; i < n; i++) {
+        const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+        const labelR = R + 32;
+        const x = cx + labelR * Math.cos(angle);
+        const y = cy + labelR * Math.sin(angle);
+        ctx.fillText(axes[i], x, y);
+      }
+    }
+
+    buildChips();
+    render();
+  </script>
+</body>
+</html>

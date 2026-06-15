@@ -141,7 +141,7 @@ function select(key) {
   renderPanel();
 }
 
-let activeTab = "ops";  // "ops" | "doc"
+let activeTab = "ops";  // "ops" | "doc" | "model" | "score"
 
 function renderPanel() {
   const p = document.getElementById("panel");
@@ -193,7 +193,7 @@ function renderPanel() {
   // タブ（操作 / 解説）
   const tabs = document.createElement("div");
   tabs.className = "tabs";
-  [["ops", "操作"], ["doc", "解説"]].forEach(([id, label]) => {
+  [["ops", "操作"], ["doc", "解説"], ["model", "データモデル"], ["score", "スコア"]].forEach(([id, label]) => {
     const t = document.createElement("button");
     t.className = "tab" + (activeTab === id ? " active" : "");
     t.textContent = label;
@@ -208,6 +208,10 @@ function renderPanel() {
 
   if (activeTab === "doc") {
     renderDocTab(body, d);
+  } else if (activeTab === "model") {
+    renderDataModelTab(body, d);
+  } else if (activeTab === "score") {
+    renderScoreTab(body, d);
   } else {
     panelCards(d).forEach(card => body.appendChild(renderCard(d, card)));
     const bulk = renderBulkCard(d);
@@ -264,6 +268,347 @@ function renderDocTab(body, db) {
       ${links ? `<div class="doc-links">${links}</div>` : ""}
       ${sections}
     </div>`;
+}
+
+// ─── Feature 1-B: データモデル可視化 ───────────────────────────────────────
+function renderDataModelTab(body, db) {
+  const gt = db.gui_type;
+  let html = "";
+
+  if (gt === "sql") {
+    html = `<div class="dm-section">
+  <p class="dm-title">行指向テーブル（正規化）</p>
+  <div class="dm-row-layout">
+    <div class="dm-table-wrap">
+      <div class="dm-table-name">users</div>
+      <table class="dm-tbl">
+        <tr><th>id</th><th>name</th><th>email</th></tr>
+        <tr class="dm-hl"><td>101</td><td>Alice</td><td>alice@example.com</td></tr>
+        <tr><td>102</td><td>Bob</td><td>bob@example.com</td></tr>
+      </table>
+    </div>
+    <div class="dm-join">JOIN ↔<br><small>外部キー</small></div>
+    <div class="dm-table-wrap">
+      <div class="dm-table-name">orders</div>
+      <table class="dm-tbl">
+        <tr><th>id</th><th>user_id</th><th>total</th></tr>
+        <tr class="dm-hl"><td>1</td><td class="dm-fk">101</td><td>¥5,000</td></tr>
+        <tr><td>2</td><td class="dm-fk">102</td><td>¥3,000</td></tr>
+      </table>
+    </div>
+    <div class="dm-table-wrap">
+      <div class="dm-table-name">order_items</div>
+      <table class="dm-tbl">
+        <tr><th>order_id</th><th>product</th><th>price</th></tr>
+        <tr class="dm-hl"><td class="dm-fk">1</td><td>本</td><td>¥3,000</td></tr>
+        <tr class="dm-hl"><td class="dm-fk">1</td><td>ペン</td><td>¥2,000</td></tr>
+        <tr><td class="dm-fk">2</td><td>ペン</td><td>¥3,000</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="dm-insight">💡 データを正規化（分割）し重複排除。JOIN で複数テーブルを結合して取得。スキーマ変更には ALTER TABLE が必要。</div>
+</div>`;
+
+  } else if (gt === "document") {
+    html = `<div class="dm-section">
+  <p class="dm-title">ドキュメント（ネスト JSON）</p>
+  <pre class="dm-json">{
+  "_id": "order_001",
+  "user": { "id": 101, "name": "Alice" },
+  "items": [
+    { "product": "本",  "price": 3000 },
+    { "product": "ペン", "price": 2000 }
+  ],
+  "total": 5000,
+  "status": "shipped"
+}</pre>
+  <div class="dm-insight">💡 関連データをネストして 1 ドキュメントに格納。JOIN 不要・スキーマレスで変更に強い。埋め込み vs 参照のトレードオフを設計時に判断。</div>
+</div>`;
+
+  } else if (gt === "keyvalue") {
+    html = `<div class="dm-section">
+  <p class="dm-title">フラットな キー → 値 ペア</p>
+  <div class="dm-kv-list">
+    <div class="dm-kv-row"><span class="dm-key">user:101</span><span class="dm-arrow">→</span><span class="dm-val">{"name":"Alice","email":"alice@example.com"}</span></div>
+    <div class="dm-kv-row"><span class="dm-key">cart:101</span><span class="dm-arrow">→</span><span class="dm-val">["本", "ペン"]</span><span class="dm-ttl">TTL: 3600s</span></div>
+    <div class="dm-kv-row"><span class="dm-key">order:1</span><span class="dm-arrow">→</span><span class="dm-val">{"user":101,"total":5000,"status":"shipped"}</span></div>
+    <div class="dm-kv-row"><span class="dm-key">session:abc</span><span class="dm-arrow">→</span><span class="dm-val">{"userId":101,"expires":1720000000}</span><span class="dm-ttl">TTL: 1800s</span></div>
+  </div>
+  <div class="dm-insight">💡 キーで直接値を取得（O(1)）。インメモリでサブミリ秒応答。JOIN や複雑なクエリはできないが、キャッシュ・セッション・ランキングに最適。</div>
+</div>`;
+
+  } else if (gt === "wide-column") {
+    html = `<div class="dm-section">
+  <p class="dm-title">パーティション＋クラスタリングキー構造</p>
+  <div class="dm-wc-wrap">
+    <div class="dm-partition">
+      <div class="dm-pk">パーティションキー: user_id = 101 → このノードに配置</div>
+      <table class="dm-tbl">
+        <tr><th>order_id (CK)</th><th>total</th><th>items</th><th>created_at</th></tr>
+        <tr class="dm-hl"><td>uuid-001</td><td>¥5,000</td><td>[本, ペン]</td><td>2024-01-15</td></tr>
+        <tr><td>uuid-002</td><td>¥1,000</td><td>[ノート]</td><td>2024-01-20</td></tr>
+      </table>
+    </div>
+    <div class="dm-partition" style="opacity:.6">
+      <div class="dm-pk">パーティションキー: user_id = 102 → 別ノードに配置</div>
+      <table class="dm-tbl">
+        <tr><th>order_id (CK)</th><th>total</th><th>items</th></tr>
+        <tr><td>uuid-003</td><td>¥3,000</td><td>[ペン]</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="dm-insight">💡 パーティションキーでノードを決定、クラスタリングキーでソート。クエリ駆動設計（クエリパターンに合わせてテーブルを設計）。JOIN は行わない。</div>
+</div>`;
+
+  } else if (gt === "graph") {
+    html = `<div class="dm-section">
+  <p class="dm-title">ノードとリレーション（エッジ）</p>
+  <div class="dm-graph">
+    <div class="dm-graph-row">
+      <div class="dm-node dm-node-user">:User<br><small>name: "Alice"</small></div>
+      <div class="dm-edge-h">—[:PLACED]→</div>
+      <div class="dm-node dm-node-order">:Order<br><small>total: 5000</small></div>
+      <div class="dm-edge-h">—[:CONTAINS]→</div>
+      <div class="dm-node dm-node-product">:Product<br><small>name: "本"</small></div>
+    </div>
+    <div class="dm-graph-row">
+      <div style="width:96px"></div>
+      <div class="dm-edge-h" style="visibility:hidden">—→</div>
+      <div class="dm-edge-v">↓ [:CONTAINS]</div>
+      <div class="dm-edge-h" style="visibility:hidden">—→</div>
+      <div class="dm-node dm-node-product">:Product<br><small>name: "ペン"</small></div>
+    </div>
+    <div class="dm-graph-row dm-graph-cypher">
+      <span>Cypher:</span>
+      <pre>MATCH (u:User)-[:PLACED]->(o:Order)-[:CONTAINS]->(p:Product)
+WHERE u.name = 'Alice'
+RETURN p.name, o.total</pre>
+    </div>
+  </div>
+  <div class="dm-insight">💡 RDB の多段 JOIN を「関係を辿る」操作で置換。推薦・不正検知・ナレッジグラフなど「つながり」の探索に圧倒的に強い。</div>
+</div>`;
+
+  } else if (gt === "timeseries") {
+    html = `<div class="dm-section">
+  <p class="dm-title">タイムスタンプ付き測定値</p>
+  <table class="dm-tbl dm-ts-tbl">
+    <tr><th>time</th><th>host (tag)</th><th>cpu_pct (field)</th><th>mem_mb (field)</th></tr>
+    <tr class="dm-hl"><td>2024-01-15T10:00:00Z</td><td>web-1</td><td>45.2</td><td>2048</td></tr>
+    <tr><td>2024-01-15T10:00:10Z</td><td>web-1</td><td>47.8</td><td>2050</td></tr>
+    <tr><td>2024-01-15T10:00:00Z</td><td>web-2</td><td>38.1</td><td>1920</td></tr>
+    <tr><td>2024-01-15T10:00:10Z</td><td>web-2</td><td>40.3</td><td>1925</td></tr>
+  </table>
+  <div class="dm-ts-concepts">
+    <span class="dm-badge-ts">measurement: cpu_stats</span>
+    <span class="dm-badge-ts">tag: host（インデックス）</span>
+    <span class="dm-badge-ts">field: 実測値（非インデックス）</span>
+    <span class="dm-badge-ts">Retention Policy: 30日で自動削除</span>
+  </div>
+  <div class="dm-insight">💡 time + tag の組み合わせで高速検索。大量の時系列データを高圧縮で保存。ダウンサンプリング（古い粒度を粗くする）で長期保存のコストを削減。</div>
+</div>`;
+
+  } else if (gt === "search") {
+    html = `<div class="dm-section">
+  <p class="dm-title">ドキュメント ＋ 転置インデックス</p>
+  <div class="dm-search-layout">
+    <div class="dm-search-docs">
+      <div class="dm-sub-title">ドキュメント</div>
+      <div class="dm-doc-card dm-hl">#1: {"title":"MacBook Pro", "body":"Appleの最新ノートPC"}</div>
+      <div class="dm-doc-card">#2: {"title":"iPad", "body":"Apple製タブレット"}</div>
+      <div class="dm-doc-card">#3: {"title":"ThinkPad", "body":"Lenovoのノート"}</div>
+    </div>
+    <div class="dm-search-arrow">→<br>転置<br>インデックス</div>
+    <div class="dm-search-index">
+      <div class="dm-sub-title">転置インデックス</div>
+      <div class="dm-idx-row"><span class="dm-iterm">Apple</span> → [#1, #2]</div>
+      <div class="dm-idx-row"><span class="dm-iterm">ノート</span> → [#1, #3]</div>
+      <div class="dm-idx-row"><span class="dm-iterm">タブレット</span> → [#2]</div>
+    </div>
+  </div>
+  <div class="dm-search-query">クエリ: "Apple ノート" → #1 (score: 0.95 ✓), #2 (score: 0.4), #3 (score: 0.2)</div>
+  <div class="dm-insight">💡 各単語からドキュメントを逆引き（転置インデックス）。関連度スコア（TF-IDF/BM25）で並べ替え。全文検索・ファジー検索・ファセットナビが得意。</div>
+</div>`;
+
+  } else if (gt === "olap") {
+    html = `<div class="dm-section">
+  <p class="dm-title">列指向ストレージ（行指向との比較）</p>
+  <div class="dm-olap-layout">
+    <div class="dm-olap-col">
+      <div class="dm-sub-title">行指向（OLTP）</div>
+      <table class="dm-tbl">
+        <tr><th>id</th><th>date</th><th>user</th><th>total</th></tr>
+        <tr><td>1</td><td>1/15</td><td>Alice</td><td>5000</td></tr>
+        <tr><td>2</td><td>1/15</td><td>Bob</td><td>3000</td></tr>
+        <tr><td>3</td><td>1/16</td><td>Alice</td><td>7000</td></tr>
+      </table>
+      <div style="font-size:12px;margin-top:6px;color:#64748b">SUM(total) → 全列スキャン</div>
+    </div>
+    <div class="dm-olap-arrow">→<br>列で<br>圧縮・保存</div>
+    <div class="dm-olap-col">
+      <div class="dm-sub-title">列指向（OLAP）</div>
+      <div class="dm-col-store">
+        <div class="dm-col-block dm-col-date">date<br>[1/15,1/15,1/16]</div>
+        <div class="dm-col-block dm-col-user">user<br>[Alice,Bob,Alice]<br><small>辞書圧縮</small></div>
+        <div class="dm-col-block dm-col-total dm-hl-col">total<br>[5000,3000,7000]<br>↑ この列だけ読む</div>
+      </div>
+      <div style="font-size:12px;margin-top:6px;color:#047857">SUM(total) = 15,000 ⚡</div>
+    </div>
+  </div>
+  <div class="dm-insight">💡 集計クエリは total 列だけ読めばOK。同じ型の値が並ぶので圧縮率が高い。数十億行の集計が秒単位で完了。ただし 1 行の更新/削除は苦手。</div>
+</div>`;
+
+  } else if (gt === "vector") {
+    html = `<div class="dm-section">
+  <p class="dm-title">埋め込みベクトル（意味空間）</p>
+  <div class="dm-vec-layout">
+    <div class="dm-vec-table">
+      <table class="dm-tbl">
+        <tr><th>id</th><th>vector (抜粋)</th><th>payload</th></tr>
+        <tr><td>1</td><td class="dm-vec">[0.92, 0.08, 0.71, ...]</td><td>"機械学習の本"</td></tr>
+        <tr><td>2</td><td class="dm-vec">[0.88, 0.12, 0.65, ...]</td><td>"AIの教科書"</td></tr>
+        <tr><td>3</td><td class="dm-vec">[0.10, 0.94, 0.20, ...]</td><td>"料理レシピ集"</td></tr>
+      </table>
+    </div>
+    <div class="dm-vec-search">
+      <div class="dm-sub-title">クエリ（意味検索）</div>
+      <div class="dm-vec-query">"ディープラーニング入門を探して"<br>↓ 埋め込みモデル<br><span class="dm-vec">[0.87, 0.10, 0.68, ...]</span></div>
+      <div class="dm-vec-result">近傍検索 (HNSW)<br>→ id=1 (cosine: 0.98) ✓<br>→ id=2 (cosine: 0.94)<br>→ id=3 (cosine: 0.12) ✗</div>
+    </div>
+  </div>
+  <div class="dm-insight">💡 テキスト/画像を数値ベクトルに変換（埋め込み）し、意味的に近いものを高速検索（ANN）。キーワード一致ではなく「意味」で検索。RAG・推薦・重複検出に活用。</div>
+</div>`;
+
+  } else {
+    html = `<div class="dm-section"><p class="hint">このDBのデータモデル図はまだ準備中です（gui_type: ${esc(gt)}）。</p></div>`;
+  }
+
+  body.innerHTML = html;
+}
+
+// ─── Feature 2-B: トレードオフ スコアチャート ──────────────────────────────
+function renderScoreTab(body, db) {
+  const scores = (typeof DB_SCORES !== "undefined") && DB_SCORES;
+  if (!scores || !scores[db.key]) {
+    body.innerHTML = `<p class="hint">スコアデータがありません。</p>`;
+    return;
+  }
+
+  const axes = scores.axes;
+  const vals = scores[db.key];
+
+  const wrap = document.createElement("div");
+  wrap.className = "score-section";
+
+  const canvasWrap = document.createElement("div");
+  canvasWrap.className = "score-canvas-wrap";
+  const canvas = document.createElement("canvas");
+  canvas.width = 380;
+  canvas.height = 300;
+  canvasWrap.appendChild(canvas);
+  wrap.appendChild(canvasWrap);
+
+  const tbl = document.createElement("table");
+  tbl.className = "score-table";
+  tbl.innerHTML = "<thead><tr><th>軸</th><th>スコア</th><th>バー</th></tr></thead>";
+  const tbody = document.createElement("tbody");
+  axes.forEach((ax, i) => {
+    const v = vals[i];
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${ax}</td><td style="text-align:center;font-weight:600;color:#4f46e5">${v}/5</td>
+      <td><span class="score-bar" style="width:${v * 20}px"></span></td>`;
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+  wrap.appendChild(tbl);
+
+  const note = document.createElement("div");
+  note.className = "score-note";
+  note.innerHTML = `<br><strong>軸の説明:</strong><br>
+    書き込み速度: 高頻度の書き込み・挿入のスループット<br>
+    読み取り速度: 単純なキー/プライマリ読み取りのレイテンシ<br>
+    クエリ柔軟性: JOIN・集計・全文検索など複雑なクエリへの対応<br>
+    水平スケール: 複数ノードへのシャード/分散のしやすさ<br>
+    整合性: ACID・強整合・結果整合のサポートレベル<br>
+    運用容易さ: セットアップ・監視・バックアップのシンプルさ`;
+  wrap.appendChild(note);
+
+  body.appendChild(wrap);
+  requestAnimationFrame(() => drawRadar(canvas, vals, axes, "#4f46e5"));
+}
+
+function drawRadar(canvas, scores, labels, color) {
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2;
+  const R = Math.min(W, H) * 0.36;
+  const n = scores.length;
+  const maxVal = 5;
+
+  ctx.clearRect(0, 0, W, H);
+
+  for (let ring = 1; ring <= maxVal; ring++) {
+    const r = (ring / maxVal) * R;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+      const x = cx + r * Math.cos(angle);
+      const y = cy + r * Math.sin(angle);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = ring === maxVal ? "#c7d2fe" : "#e2e8f0";
+    ctx.lineWidth = ring === maxVal ? 1.5 : 1;
+    ctx.stroke();
+    if (ring === maxVal || ring === 3) {
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "10px system-ui";
+      ctx.fillText(String(ring), cx + 3, cy - r + 12);
+    }
+  }
+
+  for (let i = 0; i < n; i++) {
+    const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + R * Math.cos(angle), cy + R * Math.sin(angle));
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+    const r = (scores[i] / maxVal) * R;
+    const x = cx + r * Math.cos(angle);
+    const y = cy + r * Math.sin(angle);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = color + "33";
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  for (let i = 0; i < n; i++) {
+    const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+    const r = (scores[i] / maxVal) * R;
+    ctx.beginPath();
+    ctx.arc(cx + r * Math.cos(angle), cy + r * Math.sin(angle), 4, 0, 2 * Math.PI);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  ctx.fillStyle = "#334155";
+  ctx.font = "11px system-ui";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i < n; i++) {
+    const angle = (i / n) * 2 * Math.PI - Math.PI / 2;
+    const labelR = R + 28;
+    ctx.fillText(labels[i], cx + labelR * Math.cos(angle), cy + labelR * Math.sin(angle));
+  }
 }
 
 function renderCard(db, card) {
