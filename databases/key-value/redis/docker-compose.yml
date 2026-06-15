@@ -1,0 +1,22 @@
+services:
+  redis:
+    image: redis:7
+    container_name: cmp-redis
+    command: ["redis-server", "--requirepass", "${DB_PASSWORD:-changeme}", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8g
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${DB_PASSWORD:-changeme}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  redisdata:

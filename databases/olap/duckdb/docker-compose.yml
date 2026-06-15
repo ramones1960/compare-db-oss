@@ -1,0 +1,17 @@
+# DuckDB は組込の列指向DB（サーバプロセスなし）。
+# 検証用に CLI を備えたコンテナを常駐させ、exec で操作する。
+services:
+  duckdb:
+    image: davidgasquez/duckdb:latest
+    container_name: cmp-duckdb
+    entrypoint: ["tail", "-f", "/dev/null"]
+    working_dir: /work
+    volumes:
+      - ./data:/work/data
+      - ./init:/work/init:ro
+      - ./examples:/work/examples:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8g

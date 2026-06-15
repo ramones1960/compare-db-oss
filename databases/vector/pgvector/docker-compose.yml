@@ -1,0 +1,26 @@
+services:
+  pgvector:
+    image: pgvector/pgvector:pg16
+    container_name: cmp-pgvector
+    environment:
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${DB_NAME:-benchdb}
+    ports:
+      - "${PGVECTOR_PORT:-5434}:5432"
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d:ro
+      - pgvectordata:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgvectordata:

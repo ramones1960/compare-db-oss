@@ -1,0 +1,26 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: cmp-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${DB_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD:-changeme}
+      MONGO_INITDB_DATABASE: ${DB_NAME:-benchdb}
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d:ro
+      - mongodata:/data/db
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8g
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mongodata:

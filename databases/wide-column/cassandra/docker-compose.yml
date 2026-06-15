@@ -1,0 +1,27 @@
+services:
+  cassandra:
+    image: cassandra:5
+    container_name: cmp-cassandra
+    environment:
+      CASSANDRA_CLUSTER_NAME: cmp-cluster
+      MAX_HEAP_SIZE: 2G
+      HEAP_NEWSIZE: 512M
+    ports:
+      - "${CASSANDRA_PORT:-9042}:9042"
+    volumes:
+      - cassandradata:/var/lib/cassandra
+      # init/ の .cql は手動適用（下記 README 参照）
+      - ./init:/init:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8g
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe keyspaces' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+volumes:
+  cassandradata:

@@ -1,0 +1,25 @@
+services:
+  neo4j:
+    image: neo4j:5
+    container_name: cmp-neo4j
+    environment:
+      NEO4J_AUTH: "${DB_USER:-neo4j}/${DB_PASSWORD:-changeme12}"
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    volumes:
+      - neo4jdata:/data
+      - ./init:/init:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8g
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  neo4jdata:

@@ -1,0 +1,24 @@
+services:
+  cockroachdb:
+    image: cockroachdb/cockroach:latest-v24.1
+    container_name: cmp-cockroachdb
+    command: start-single-node --insecure
+    ports:
+      - "${COCKROACHDB_PORT:-26257}:26257"
+      - "8080:8080"   # Admin UI
+    volumes:
+      - cockroachdata:/cockroach/cockroach-data
+      - ./init:/init:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8g
+    healthcheck:
+      test: ["CMD", "cockroach", "node", "status", "--insecure"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  cockroachdata:

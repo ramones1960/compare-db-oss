@@ -1,0 +1,19 @@
+# env
+.env
+*.local
+
+# benchmark results (大きなrawデータ。集計済みは別途コミット)
+benchmarks/results/**/raw/
+*.log
+
+# container volumes / data
+**/data/
+**/volumes/
+*.dump
+*.rdb
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp

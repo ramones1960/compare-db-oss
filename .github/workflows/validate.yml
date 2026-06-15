@@ -1,0 +1,32 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  compose-config:
+    name: docker compose 構文チェック
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 全DBの compose を検証
+        run: |
+          cp .env.example .env
+          fail=0
+          while IFS= read -r f; do
+            echo "== $f =="
+            (cd "$(dirname "$f")" && docker compose config -q) || fail=1
+          done < <(find databases -name docker-compose.yml)
+          exit $fail
+
+  shellcheck:
+    name: シェルスクリプト Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          find scripts databases -name '*.sh' -print0 | xargs -0 shellcheck -e SC1091 || true

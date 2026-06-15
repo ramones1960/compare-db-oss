@@ -1,0 +1,30 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24
+    container_name: cmp-clickhouse
+    environment:
+      CLICKHOUSE_USER: ${DB_USER:-admin}
+      CLICKHOUSE_PASSWORD: ${DB_PASSWORD:-changeme}
+      CLICKHOUSE_DB: ${DB_NAME:-benchdb}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - "${CLICKHOUSE_PORT:-8123}:8123"   # HTTP
+      - "9000:9000"                        # Native
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d:ro
+      - chdata:/var/lib/clickhouse
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8g
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  chdata:

@@ -1,0 +1,28 @@
+services:
+  influxdb:
+    image: influxdb:2.7
+    container_name: cmp-influxdb
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${DB_USER:-admin}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${DB_PASSWORD:-changeme12}
+      DOCKER_INFLUXDB_INIT_ORG: cmp-org
+      DOCKER_INFLUXDB_INIT_BUCKET: ${DB_NAME:-benchdb}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: cmp-admin-token
+    ports:
+      - "${INFLUXDB_PORT:-8086}:8086"
+    volumes:
+      - influxdata:/var/lib/influxdb2
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8g
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  influxdata:
