@@ -2,53 +2,50 @@
 
 | 項目 | 内容 |
 |---|---|
-| カテゴリ | リレーショナル |
-| データモデル | 組込RDBMS |
-| 主な用途 | 組込・ローカル・テスト |
-| デフォルトポート | N/A(組込) |
+| カテゴリ | リレーショナル（組込） |
+| データモデル | 行指向RDBMS（サーバレス） |
+| 主な用途 | 組込・ローカル・テスト・小規模アプリ |
+| デフォルトポート | なし（組込ライブラリ） |
+| イメージ | `keinos/sqlite3:latest`（CLI 用） |
 
 ## 概要
 
-> SQLite の概要をここに記述する（成り立ち・設計思想・代表的な採用事例）。
+SQLite はサーバプロセスを持たない組込 RDBMS。1 ファイル = 1 データベースで、
+設定不要・ゼロ運用。アプリに直接リンクして使われ、モバイル/デスクトップ/組込/テストで広く採用。
+本リポジトリでは検証用に CLI を備えたコンテナを常駐させ、`docker exec` で操作する。
 
 ## 向いている用途・向かない用途
 
-- **向いている**: TODO
-- **向かない**: TODO
+- **向いている**: 組込・ローカルストレージ、設定/キャッシュ、テスト、小〜中規模の単一ユーザ用途
+- **向かない**: 高同時書き込み、ネットワーク越しの多クライアント、大規模（→ サーバ型RDBMS）
 
 ## 長所・短所
 
 | 長所 | 短所 |
 |---|---|
-| TODO | TODO |
+| ゼロ設定・サーバ不要・単一ファイル | 同時書き込みに弱い（ファイルロック） |
+| 高速・軽量・移植性 | ネットワークアクセス非対応 |
+| トランザクション(ACID) | 大規模・高並行には不向き |
 
 ## 起動方法
 
 ```bash
-# リポジトリルートから
-make up DB=sqlite
-
-# または直接
-cd databases/relational/sqlite
-docker compose up -d
+make up DB=sqlite   # CLI コンテナを常駐
 ```
 
 ## 基本操作
 
-接続方法と CRUD のサンプルは [examples/](examples/) を参照。
-
 ```bash
-# TODO: 接続コマンド例
+# 対話シェル
+docker exec -it cmp-sqlite sqlite3 /work/data/benchdb.sqlite
+
+# サンプルを流す
+docker exec -i cmp-sqlite sqlite3 /work/data/benchdb.sqlite < examples/crud.sql
 ```
-
-## 初期データ
-
-[init/](init/) のスクリプトが起動時に自動適用される。
 
 ## 性能検証
 
-[benchmark/](benchmark/) のスクリプトで計測する。手法は
-[../../../docs/benchmark-methodology.md](../../../docs/benchmark-methodology.md) を参照。
+トランザクション内一括 INSERT（書き込み）と主キー点検索（読み取り）を計測する。
 
 ```bash
 make bench DB=sqlite
@@ -56,4 +53,4 @@ make bench DB=sqlite
 
 ## 参考リンク
 
-- 公式ドキュメント: TODO
+- 公式ドキュメント: https://www.sqlite.org/docs.html

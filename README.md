@@ -24,6 +24,7 @@ compare-db-oss/
 │       ├── examples/          # 基本操作サンプル
 │       └── benchmark/         # 性能検証スクリプト
 ├── benchmarks/        # 共通ベンチ基盤（tools / scenarios / results）
+├── app/               # 用途別GUIのお試しアプリ（FastAPI + JS）
 ├── scripts/           # 横断オペレーション（up/down/run-benchmark）
 └── Makefile           # 統一エントリポイント
 ```
@@ -45,6 +46,11 @@ compare-db-oss/
 
 詳細は [docs/comparison-matrix.md](docs/comparison-matrix.md) を参照。
 
+### 実装状況
+
+**全 15 DB を通しで実装済み** — README・初期データ・CRUD例・動作する性能検証スクリプトを完備し、
+`make bench DB=<name>` で `summary.json` を出力できる状態（全DBコンテナで動作確認済み）。
+
 ## クイックスタート
 
 ```bash
@@ -59,6 +65,23 @@ make down DB=postgresql
 # ベンチ実行
 make bench DB=postgresql
 ```
+
+## GUI でお試し
+
+各 DB を **用途別の GUI** から SELECT / INSERT などで操作できるサンプルアプリを同梱。
+
+```bash
+# 試したい DB を起動してから
+make up DB=postgresql
+make up DB=redis
+make up DB=mongodb
+
+# お試しアプリを起動（http://localhost:8000）
+make app
+```
+
+DB のデータモデルに応じて画面が切り替わります（SQL エディタ / ドキュメント / KVS /
+Cypher / 時系列 / 全文検索 / ベクトル）。詳細は [app/README.md](app/README.md)。
 
 ## 新しい DB を追加する
 

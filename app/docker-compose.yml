@@ -1,0 +1,17 @@
+services:
+  app:
+    build: .
+    container_name: cmp-app
+    # 各DBコンテナは別 compose で起動し、ホストにポートを公開している。
+    # network_mode: host で localhost:<port> 経由で各DBに到達する（Linux）。
+    network_mode: host
+    environment:
+      DB_HOST: localhost
+      DB_USER: ${DB_USER:-admin}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_NAME: ${DB_NAME:-benchdb}
+      OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD:-Zx9!qWeRt#Uk7mp2}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-neo4jPass123}
+      APP_DATA_DIR: /app/data
+    volumes:
+      - ./data:/app/data   # SQLite / DuckDB の永続化（組込のためアプリ内で動作）

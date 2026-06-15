@@ -23,17 +23,32 @@
 | ベクトル | Qdrant | ベクトル + payload | 類似検索・RAG | 水平 | 結果整合 | なし |
 | ベクトル | pgvector | ベクトル (PG拡張) | 類似検索 + SQL | 垂直 | 強整合 | ACID |
 
-## 性能サマリ（ベンチ実施後に記入）
+## 性能サマリ（全15 DB）
 
-| DB | Write スループット (ops/s) | Read レイテンシ p99 (ms) | Mixed (50/50) | 測定条件 |
-|---|---|---|---|---|
-| PostgreSQL | TBD | TBD | TBD | - |
-| MySQL | TBD | TBD | TBD | - |
-| MongoDB | TBD | TBD | TBD | - |
-| Redis | TBD | TBD | TBD | - |
-| ... | | | | |
+各 DB はワークロードが異なるため指標も異なる。詳細な数値は `make bench DB=<name>` 実行後に
+`benchmarks/results/<db>/<date>/summary.json` に出力される。下表は **動作確認時の参考値**
+（制約コンテナ・単一ノード・少データの 1 回計測。絶対値ではなく傾向把握用）。
 
-> 測定条件・ワークロード定義は [benchmark-methodology.md](benchmark-methodology.md) を参照。
+| DB | 計測内容 | 書き込み | 読み取り / クエリ |
+|---|---|---|---|
+| PostgreSQL | pgbench TPC-B 風 | 約 2,250 tps | 平均 3.6 ms |
+| MySQL | 一括INSERT + 点検索 | 約 81,000 行/s | 約 7,200 ops/s |
+| SQLite | TX一括INSERT + 点検索 | 約 292,000 ops/s | 約 36,000 ops/s |
+| MongoDB | insertMany + _id 検索 | 約 73,000 docs/s | 約 630 ops/s |
+| Redis | redis-benchmark | SET 約 78,000 ops/s | GET 約 84,000 ops/s |
+| Cassandra | cassandra-stress write | 約 7,100 ops/s | p99 約 5.9 ms |
+| Neo4j | ノード一括生成 + 検索 | 約 11,500 nodes/s | 索引検索（JVM起動込み） |
+| CockroachDB | workload kv (R/W 50%) | 約 4,100 ops/s | p99 約 5.2 ms |
+| InfluxDB | line protocol + mean() | 約 112,000 points/s | 集計 約 100 ms |
+| TimescaleDB | 一括INSERT + time_bucket | 約 216,000 行/s | 集計 約 88 ms |
+| OpenSearch | _bulk + match 検索 | 約 16,600 docs/s | 検索 took 約 26 ms |
+| ClickHouse | numbers() + GROUP BY | 約 3,970,000 行/s | 集計 約 144 ms |
+| DuckDB | range() + GROUP BY | 約 2,500,000 行/s | 集計 約 104 ms |
+| Qdrant | upsert + 類似検索 | 約 12,000 vec/s (dim64) | 約 466 QPS |
+| pgvector | 一括INSERT + IVFFlat検索 | 約 169,000 vec/s (dim16) | ANN 約 114 ms |
+
+> ⚠️ 上記はホスト/データ量/設定・ワークロードに強く依存する（指標も DB ごとに異なる）。
+> 公平な比較には [benchmark-methodology.md](benchmark-methodology.md) の条件を揃えて再計測すること。
 
 ## 選び方の早見
 

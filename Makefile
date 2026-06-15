@@ -7,8 +7,9 @@
 #   make logs DB=postgresql   ログ表示
 #   make bench DB=postgresql  ベンチ実行
 #   make clean DB=postgresql  停止 + ボリューム削除
+#   make app                  GUI お試しアプリを起動 (http://localhost:8000)
 
-.PHONY: help list up down logs bench clean
+.PHONY: help list up down logs bench clean app
 
 # DB名から databases/ 配下のパスを解決
 DB_PATH = $(shell find databases -maxdepth 2 -type d -name "$(DB)" | head -n1)
@@ -38,3 +39,6 @@ bench: _check
 
 clean: _check
 	cd $(DB_PATH) && docker compose down -v
+
+app:
+	cd app && docker compose up --build

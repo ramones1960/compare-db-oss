@@ -10,8 +10,10 @@ services:
     ports:
       - "${CLICKHOUSE_PORT:-8123}:8123"   # HTTP
       - "9000:9000"                        # Native
-    ulimits:
-      nofile: { soft: 262144, hard: 262144 }
+    # 本番では nofile を 262144 以上に上げることを推奨（公式ガイド）。
+    # ホストの hard limit を超えると起動できないため compose では既定値に任せる。
+    # ulimits:
+    #   nofile: { soft: 262144, hard: 262144 }
     volumes:
       - ./init:/docker-entrypoint-initdb.d:ro
       - chdata:/var/lib/clickhouse

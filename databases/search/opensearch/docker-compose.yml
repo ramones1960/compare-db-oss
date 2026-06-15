@@ -4,13 +4,17 @@ services:
     container_name: cmp-opensearch
     environment:
       discovery.type: single-node
-      bootstrap.memory_lock: "true"
+      # 本番では memory_lock=true + memlock unlimited を推奨。
+      # 制約環境（ホストの memlock/nofile hard limit が低い）では起動できないため false。
+      bootstrap.memory_lock: "false"
       OPENSEARCH_JAVA_OPTS: "-Xms2g -Xmx2g"
-      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${DB_PASSWORD:-Changeme123!}
+      # OpenSearch 2.12+ は強パスワードを要求するため、共通の DB_PASSWORD とは別管理
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_PASSWORD:-Zx9!qWeRt#Uk7mp2}
       DISABLE_SECURITY_PLUGIN: "false"
-    ulimits:
-      memlock: { soft: -1, hard: -1 }
-      nofile: { soft: 65536, hard: 65536 }
+    # 本番では以下を有効化:
+    # ulimits:
+    #   memlock: { soft: -1, hard: -1 }
+    #   nofile: { soft: 65536, hard: 65536 }
     ports:
       - "${OPENSEARCH_PORT:-9200}:9200"
     volumes:
@@ -21,7 +25,7 @@ services:
           cpus: "4"
           memory: 8g
     healthcheck:
-      test: ["CMD-SHELL", "curl -sk -u admin:${DB_PASSWORD:-Changeme123!} https://localhost:9200/_cluster/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sk -u admin:${OPENSEARCH_PASSWORD:-Zx9!qWeRt#Uk7mp2} https://localhost:9200/_cluster/health || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10

@@ -3,7 +3,8 @@ services:
     image: neo4j:5
     container_name: cmp-neo4j
     environment:
-      NEO4J_AUTH: "${DB_USER:-neo4j}/${DB_PASSWORD:-changeme12}"
+      # Neo4j はユーザ名が neo4j 固定・パスワード8文字以上。共通の DB_* とは別管理。
+      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:-neo4jPass123}"
     ports:
       - "${NEO4J_HTTP_PORT:-7474}:7474"
       - "${NEO4J_BOLT_PORT:-7687}:7687"
