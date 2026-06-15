@@ -6,49 +6,45 @@
 | データモデル | 行指向RDBMS |
 | 主な用途 | Webアプリ・汎用OLTP |
 | デフォルトポート | 3306 |
+| イメージ | `mysql:8.4` |
 
 ## 概要
 
-> MySQL の概要をここに記述する（成り立ち・設計思想・代表的な採用事例）。
+MySQL は世界的に普及した OSS RDBMS。InnoDB ストレージエンジンによる
+ACID トランザクション、レプリケーション、広範なツール・ホスティング対応が特徴。
+LAMP/LEMP スタックをはじめ Web アプリのバックエンドとして定番。
 
 ## 向いている用途・向かない用途
 
-- **向いている**: TODO
-- **向かない**: TODO
+- **向いている**: Web アプリの汎用データストア、読み取り中心のワークロード、既存エコシステムを活かしたいケース
+- **向かない**: 高度な分析クエリ（→ PostgreSQL / ClickHouse）、超低レイテンシKVS（→ Redis）
 
 ## 長所・短所
 
 | 長所 | 短所 |
 |---|---|
-| TODO | TODO |
+| 普及率・実績・情報量が豊富 | 複雑クエリ最適化は PostgreSQL に劣る面も |
+| レプリケーションが容易 | 機能拡張性は限定的 |
+| 軽量で扱いやすい | 厳密なSQL標準準拠ではない |
 
 ## 起動方法
 
 ```bash
-# リポジトリルートから
 make up DB=mysql
-
-# または直接
-cd databases/relational/mysql
-docker compose up -d
 ```
 
 ## 基本操作
 
-接続方法と CRUD のサンプルは [examples/](examples/) を参照。
-
 ```bash
-# TODO: 接続コマンド例
+docker exec -it cmp-mysql mysql -uadmin -pchangeme benchdb
+docker exec -i cmp-mysql mysql -uadmin -pchangeme benchdb < examples/crud.sql
 ```
 
-## 初期データ
-
-[init/](init/) のスクリプトが起動時に自動適用される。
+初期スキーマは [init/01_schema.sql](init/01_schema.sql) が自動適用される。
 
 ## 性能検証
 
-[benchmark/](benchmark/) のスクリプトで計測する。手法は
-[../../../docs/benchmark-methodology.md](../../../docs/benchmark-methodology.md) を参照。
+`mysqlslap`（同時実行クエリ負荷）でスループットを計測する。
 
 ```bash
 make bench DB=mysql
@@ -56,4 +52,4 @@ make bench DB=mysql
 
 ## 参考リンク
 
-- 公式ドキュメント: TODO
+- 公式ドキュメント: https://dev.mysql.com/doc/

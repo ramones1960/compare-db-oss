@@ -23,17 +23,25 @@
 | ベクトル | Qdrant | ベクトル + payload | 類似検索・RAG | 水平 | 結果整合 | なし |
 | ベクトル | pgvector | ベクトル (PG拡張) | 類似検索 + SQL | 垂直 | 強整合 | ACID |
 
-## 性能サマリ（ベンチ実施後に記入）
+## 性能サマリ（Phase 1）
 
-| DB | Write スループット (ops/s) | Read レイテンシ p99 (ms) | Mixed (50/50) | 測定条件 |
-|---|---|---|---|---|
-| PostgreSQL | TBD | TBD | TBD | - |
-| MySQL | TBD | TBD | TBD | - |
-| MongoDB | TBD | TBD | TBD | - |
-| Redis | TBD | TBD | TBD | - |
-| ... | | | | |
+各 DB はワークロードが異なるため指標も異なる。詳細な数値は `make bench DB=<name>` 実行後に
+`benchmarks/results/<db>/<date>/summary.json` に出力される。下表は **動作確認時の参考値**
+（制約コンテナ・単一ノード・少データの 1 回計測。絶対値ではなく傾向把握用）。
 
-> 測定条件・ワークロード定義は [benchmark-methodology.md](benchmark-methodology.md) を参照。
+| DB | 計測内容 | 書き込み | 読み取り / クエリ |
+|---|---|---|---|
+| PostgreSQL | pgbench TPC-B 風 | 約 2,250 tps | 平均 3.6 ms |
+| MySQL | 一括INSERT + 点検索 | 約 81,000 行/s | 約 7,200 ops/s |
+| MongoDB | insertMany + _id 検索 | 約 73,000 docs/s | 約 630 ops/s |
+| Redis | redis-benchmark | SET 約 78,000 ops/s | GET 約 84,000 ops/s |
+| InfluxDB | line protocol + mean() | 約 112,000 points/s | 集計 約 100 ms |
+| ClickHouse | numbers() + GROUP BY | 約 3,970,000 行/s | 集計 約 144 ms |
+| OpenSearch | _bulk + match 検索 | 約 16,600 docs/s | 検索 took 約 26 ms |
+| Qdrant | upsert + 類似検索 | 約 12,000 vec/s (dim64) | 約 466 QPS |
+
+> ⚠️ 上記はホスト/データ量/設定に強く依存する。公平な比較には
+> [benchmark-methodology.md](benchmark-methodology.md) の条件を揃えて再計測すること。
 
 ## 選び方の早見
 
