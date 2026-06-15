@@ -1,6 +1,15 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      # ビルド時のプロキシをホストのシェル環境変数から受け取る（未設定なら空）
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1}
+        http_proxy: ${http_proxy:-}
+        https_proxy: ${https_proxy:-}
+        no_proxy: ${no_proxy:-localhost,127.0.0.1}
     container_name: cmp-app
     # 各DBコンテナは別 compose で起動し、ホストにポートを公開している。
     # network_mode: host で localhost:<port> 経由で各DBに到達する（Linux）。
@@ -13,5 +22,8 @@ services:
       OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD:-Zx9!qWeRt#Uk7mp2}
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-neo4jPass123}
       APP_DATA_DIR: /app/data
+      # 実行時: localhost の DB 接続はプロキシを経由させない
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1}
+      no_proxy: ${no_proxy:-localhost,127.0.0.1}
     volumes:
       - ./data:/app/data   # SQLite / DuckDB の永続化（組込のためアプリ内で動作）

@@ -66,6 +66,21 @@ make down DB=postgresql
 make bench DB=postgresql
 ```
 
+## 性能検証の考え方
+
+**方針**: 各 DB を同一ホスト・同一リソース制約（CPU 4 / メモリ 8g）で起動し、共通の方針で計測して
+**傾向**を比較します。各 DB に適したワークロード（pgbench / redis-benchmark / cassandra-stress /
+`cockroach workload` / ネイティブ操作など）で計測し、結果を `summary.json` に統一フォーマットで保存。
+絶対値の優劣付けではなく **用途ごとの傾向把握** が目的です（同一マシンで順次・ウォームアップ後に計測）。
+
+```bash
+make bench DB=postgresql
+# 結果: benchmarks/results/<db>/<date>/summary.json
+```
+
+- 計測方針・指標・前提・結果フォーマットの詳細 → [docs/benchmark-methodology.md](docs/benchmark-methodology.md)
+- 全15 DB の参考値・比較表 → [docs/comparison-matrix.md](docs/comparison-matrix.md)
+
 ## GUI でお試し
 
 各 DB を **用途別の GUI** から SELECT / INSERT などで操作できるサンプルアプリを同梱。
@@ -89,6 +104,19 @@ Cypher / 時系列 / 全文検索 / ベクトル）。詳細は [app/README.md](
 2. `docker-compose.yml` / `init/` / `examples/` / `benchmark/` を埋める
 3. `README.md` を共通フォーマットで記述
 4. `docs/comparison-matrix.md` に行を追加
+
+## プロキシ環境での利用
+
+社内プロキシ等の環境では、イメージ取得や pip/apt のパッケージ取得にプロキシ設定が必要です。
+プロキシは **環境変数（`HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`）から取得**する方針で、
+Docker デーモン・アプリのビルド（pip/apt）・pip/npm への設定方法を
+[docs/proxy.md](docs/proxy.md) にまとめています。
+
+```bash
+export HTTPS_PROXY=http://proxy.example.com:8080
+export NO_PROXY=localhost,127.0.0.1,::1
+make app   # ビルド時に pip/apt がプロキシ経由（値はイメージに残さない）
+```
 
 ## ライセンス
 
