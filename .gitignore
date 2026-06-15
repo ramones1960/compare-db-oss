@@ -21,3 +21,7 @@ benchmarks/results/**/raw/
 # python
 __pycache__/
 *.pyc
+
+# 独自CA証明書（環境依存・非コミット）
+app/certs/*.crt
+app/certs/*.pem
