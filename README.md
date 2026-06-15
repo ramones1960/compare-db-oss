@@ -51,6 +51,24 @@ compare-db-oss/
 **全 15 DB を通しで実装済み** — README・初期データ・CRUD例・動作する性能検証スクリプトを完備し、
 `make bench DB=<name>` で `summary.json` を出力できる状態（全DBコンテナで動作確認済み）。
 
+## 動作要件
+
+- **必須**: Docker / docker compose（Compose v2）。Linux / macOS / Windows(WSL2) で動作。
+  GUI お試しアプリ（`make app`）は Docker で起動するため追加ランタイムは不要。
+- **設計前提**: DB は `make up DB=<name>` で **1 つずつ起動**する。各 DB の compose は
+  リソース上限 `cpus "4" / memory 8g`（公平な計測のための**上限**で、アイドル時の実消費はもっと小さい）。
+  全 15 DB の**同時起動は想定していない**。
+
+| 区分 | CPU | メモリ | ディスク空き | 用途 |
+|---|---|---|---|---|
+| 最低限 | 2 コア | 8 GB | 20 GB | 軽量DB（PostgreSQL/Redis/SQLite 等）を1つずつ起動・学習 |
+| 推奨 | 4 コア | 16 GB | 40〜60 GB | 全DBを順番に検証。JVM系（Cassandra/OpenSearch/Neo4j）も快適 |
+| 余裕 | 8 コア | 32 GB | 100 GB | ベンチを上限どおり効かせる・複数DB同時・YCSB イメージ込み |
+
+- **メモリ**: JVM 系（Cassandra ヒープ 2G、OpenSearch `-Xmx2g` 等）は実際に 2GB 前後を確保するため 16GB 推奨。
+- **ディスク**: DB イメージは多種（各数百MB〜1GB級）。一通り pull すると 20〜40GB 消費。`make ycsb` で +α。
+- **プロキシ環境**: イメージ/パッケージ取得にプロキシ設定が要る場合は [docs/proxy.md](docs/proxy.md) を参照。
+
 ## クイックスタート
 
 ```bash
