@@ -78,7 +78,16 @@ make bench DB=postgresql
 # 結果: benchmarks/results/<db>/<date>/summary.json
 ```
 
+また、汎用 KVS/RDBMS は **YCSB 共通ワークロード(A〜E)** でも横並び計測できる
+（対応: PostgreSQL / MySQL / CockroachDB / TimescaleDB / pgvector / MongoDB / Redis / Cassandra）。
+
+```bash
+make ycsb DB=postgresql WORKLOAD=A
+# 結果: benchmarks/results/<db>/<date>-ycsb-A/summary.json
+```
+
 - 計測方針・指標・前提・結果フォーマットの詳細 → [docs/benchmark-methodology.md](docs/benchmark-methodology.md)
+- ネイティブ計測 / YCSB の使い分け → [benchmarks/README.md](benchmarks/README.md)
 - 全15 DB の参考値・比較表 → [docs/comparison-matrix.md](docs/comparison-matrix.md)
 
 ## GUI でお試し
@@ -100,10 +109,17 @@ Cypher / 時系列 / 全文検索 / ベクトル）。詳細は [app/README.md](
 
 ## 新しい DB を追加する
 
-1. `databases/<category>/<db>/` を既存DBのテンプレートを複製して作成
-2. `docker-compose.yml` / `init/` / `examples/` / `benchmark/` を埋める
-3. `README.md` を共通フォーマットで記述
-4. `docs/comparison-matrix.md` に行を追加
+雛形生成 → 編集 → 登録、の流れを標準化している。
+
+```bash
+# 雛形を生成（テンプレートを複製してプレースホルダ置換）
+make new-db CATEGORY=relational DB=mariadb IMAGE=mariadb:11 PORT=3307
+# または ./scripts/new-db.sh relational mariadb mariadb:11 3307
+```
+
+生成後は `docker-compose.yml` / `init/` / `examples/` / `benchmark/run.sh` を埋め、
+`.env.example`・`docs/comparison-matrix.md`・本 README を更新する。
+規約・必須項目・チェックリストの全手順は [docs/adding-a-database.md](docs/adding-a-database.md) を参照。
 
 ## プロキシ環境での利用
 

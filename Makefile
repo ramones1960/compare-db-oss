@@ -5,11 +5,15 @@
 #   make up   DB=postgresql   指定DBを起動
 #   make down DB=postgresql   指定DBを停止
 #   make logs DB=postgresql   ログ表示
-#   make bench DB=postgresql  ベンチ実行
+#   make bench DB=postgresql  ベンチ実行（各DBネイティブ）
+#   make ycsb DB=postgresql WORKLOAD=A  YCSB 共通ワークロードで計測（汎用KVS/RDBMS）
 #   make clean DB=postgresql  停止 + ボリューム削除
 #   make app                  GUI お試しアプリを起動 (http://localhost:8000)
+#   make new-db CATEGORY=relational DB=mariadb  新規DBの雛形を生成
 
-.PHONY: help list up down logs bench clean app
+.PHONY: help list up down logs bench ycsb clean app new-db
+
+WORKLOAD ?= A
 
 # DB名から databases/ 配下のパスを解決
 DB_PATH = $(shell find databases -maxdepth 2 -type d -name "$(DB)" | head -n1)
@@ -37,8 +41,16 @@ logs: _check
 bench: _check
 	./scripts/run-benchmark.sh $(DB)
 
+ycsb: _check
+	./scripts/run-ycsb.sh $(DB) $(WORKLOAD)
+
 clean: _check
 	cd $(DB_PATH) && docker compose down -v
 
 app:
 	cd app && docker compose up --build
+
+new-db:
+	@test -n "$(CATEGORY)" || (echo "ERROR: CATEGORY=<dir> を指定してください (例: relational)"; exit 1)
+	@test -n "$(DB)" || (echo "ERROR: DB=<name> を指定してください"; exit 1)
+	./scripts/new-db.sh $(CATEGORY) $(DB) $(IMAGE) $(PORT)
