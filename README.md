@@ -47,12 +47,8 @@ compare-db-oss/
 
 ### 実装状況
 
-**Phase 1（8 DB）は通しで実装済み** — README・初期データ・CRUD例・動作する性能検証スクリプトを完備し、
-`make bench` で `summary.json` を出力できる状態：
-PostgreSQL / MySQL / MongoDB / Redis / InfluxDB / OpenSearch / ClickHouse / Qdrant。
-
-その他の DB（SQLite / Cassandra / Neo4j / CockroachDB / TimescaleDB / DuckDB / pgvector）は
-起動可能な `docker-compose.yml` と README 雛形まで用意済み（中身は今後充填）。
+**全 15 DB を通しで実装済み** — README・初期データ・CRUD例・動作する性能検証スクリプトを完備し、
+`make bench DB=<name>` で `summary.json` を出力できる状態（全DBコンテナで動作確認済み）。
 
 ## クイックスタート
 
