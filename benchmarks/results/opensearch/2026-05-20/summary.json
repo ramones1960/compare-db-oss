@@ -1,0 +1,14 @@
+{
+  "db": "opensearch",
+  "version": "2.13",
+  "date": "2026-05-20",
+  "host": {"cpus": "4", "memory": "8g"},
+  "workloads": {
+    "bulk_search": {
+      "throughput_ops": 16600,
+      "latency_avg_ms": 26,
+      "threads": 4,
+      "duration_s": 30
+    }
+  }
+}

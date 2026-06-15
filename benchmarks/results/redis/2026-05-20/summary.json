@@ -1,0 +1,23 @@
+{
+  "db": "redis",
+  "version": "7.2",
+  "tool": "ycsb",
+  "date": "2026-05-20",
+  "host": {"cpus": "4", "memory": "8g"},
+  "params": {
+    "record_count": 100000,
+    "operation_count": 100000,
+    "threads": 8,
+    "workload": "A"
+  },
+  "workloads": {
+    "A": {
+      "load": {"throughput_ops": 45000},
+      "run": {
+        "throughput_ops": 78000,
+        "read_p99_ms": 0.5,
+        "update_p99_ms": 0.8
+      }
+    }
+  }
+}

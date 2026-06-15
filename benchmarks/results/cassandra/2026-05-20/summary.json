@@ -1,0 +1,14 @@
+{
+  "db": "cassandra",
+  "version": "4.1",
+  "date": "2026-05-20",
+  "host": {"cpus": "4", "memory": "8g"},
+  "workloads": {
+    "stress_write": {
+      "throughput_ops": 7100,
+      "latency_p99_ms": 5.9,
+      "threads": 8,
+      "duration_s": 30
+    }
+  }
+}

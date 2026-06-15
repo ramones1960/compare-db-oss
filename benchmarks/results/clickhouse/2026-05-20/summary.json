@@ -1,0 +1,14 @@
+{
+  "db": "clickhouse",
+  "version": "24.3",
+  "date": "2026-05-20",
+  "host": {"cpus": "4", "memory": "8g"},
+  "workloads": {
+    "olap_aggregate": {
+      "throughput_ops": 3970000,
+      "latency_avg_ms": 144,
+      "threads": 4,
+      "duration_s": 30
+    }
+  }
+}

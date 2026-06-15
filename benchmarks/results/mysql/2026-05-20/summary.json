@@ -1,0 +1,14 @@
+{
+  "db": "mysql",
+  "version": "8.0",
+  "date": "2026-05-20",
+  "host": {"cpus": "4", "memory": "8g"},
+  "workloads": {
+    "bulk_insert": {
+      "throughput_ops": 81000,
+      "latency_avg_ms": 0.12,
+      "threads": 8,
+      "duration_s": 30
+    }
+  }
+}

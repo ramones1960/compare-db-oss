@@ -1,0 +1,93 @@
+services:
+  postgresql:
+    image: postgres:16
+    container_name: pattern-polyglot-pg
+    environment:
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${DB_NAME:-ecommerce}
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg_polyglot_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    container_name: pattern-polyglot-redis
+    command: ["redis-server", "--requirepass", "${DB_PASSWORD:-changeme}", "--appendonly", "yes"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_polyglot_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${DB_PASSWORD:-changeme}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongodb:
+    image: mongo:7
+    container_name: pattern-polyglot-mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${DB_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD:-changeme}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-catalog}
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo_polyglot_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  opensearch:
+    image: opensearchproject/opensearch:2
+    container_name: pattern-polyglot-opensearch
+    environment:
+      discovery.type: single-node
+      bootstrap.memory_lock: "false"
+      OPENSEARCH_JAVA_OPTS: "-Xms1g -Xmx1g"
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_PASSWORD:-Zx9!qWeRt#Uk7mp2}
+      DISABLE_SECURITY_PLUGIN: "false"
+    ports:
+      - "9202:9200"
+    volumes:
+      - os_polyglot_data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sk -u admin:${OPENSEARCH_PASSWORD:-Zx9!qWeRt#Uk7mp2} https://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24
+    container_name: pattern-polyglot-clickhouse
+    environment:
+      CLICKHOUSE_USER: ${DB_USER:-admin}
+      CLICKHOUSE_PASSWORD: ${DB_PASSWORD:-changeme}
+      CLICKHOUSE_DB: ${CH_DB:-sales_analytics}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - "8124:8123"
+      - "9001:9000"
+    volumes:
+      - ch_polyglot_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pg_polyglot_data:
+  redis_polyglot_data:
+  mongo_polyglot_data:
+  os_polyglot_data:
+  ch_polyglot_data:

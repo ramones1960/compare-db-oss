@@ -1,0 +1,40 @@
+services:
+  postgresql:
+    image: postgres:16
+    container_name: pattern-cqrs-pg
+    environment:
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${DB_NAME:-orders}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_cqrs_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24
+    container_name: pattern-cqrs-clickhouse
+    environment:
+      CLICKHOUSE_USER: ${DB_USER:-admin}
+      CLICKHOUSE_PASSWORD: ${DB_PASSWORD:-changeme}
+      CLICKHOUSE_DB: ${CH_DB:-analytics}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - ch_cqrs_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pg_cqrs_data:
+  ch_cqrs_data:
