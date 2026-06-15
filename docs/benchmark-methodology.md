@@ -30,8 +30,12 @@
 | Workload D | Read latest 中心 | 最新データ参照 |
 | Workload E | Scan 中心 | 範囲スキャン |
 
-カテゴリ固有のベンチ（時系列・OLAP・ベクトル・検索）は各 DB の `benchmark/` に専用スクリプトを用意する。
-（例: OLAP は集計クエリのレイテンシ、ベクトルは Recall@k と QPS）
+これら A〜E の定義は [../benchmarks/scenarios/](../benchmarks/scenarios/)（`workload-a.md`〜`workload-e.md`）にあり、
+**YCSB 対応DB（汎用 KVS/RDBMS）** では `make ycsb DB=<name> WORKLOAD=A` で実測できる
+（対応DB・仕組みは [../benchmarks/README.md](../benchmarks/README.md)）。
+
+カテゴリ固有のベンチ（時系列・OLAP・ベクトル・検索）は各 DB の `benchmark/` に専用スクリプトを用意し、
+`make bench DB=<name>` で実行する。（例: OLAP は集計クエリのレイテンシ、ベクトルは Recall@k と QPS）
 
 ## 前提条件・注意
 

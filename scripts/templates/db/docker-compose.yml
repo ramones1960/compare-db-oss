@@ -1,0 +1,26 @@
+services:
+  __DB__:
+    image: __IMAGE__
+    container_name: __CONTAINER__
+    # EDIT: 認証情報等の環境変数（共通の DB_USER / DB_PASSWORD / DB_NAME に合わせる）
+    environment: {}
+    ports:
+      - "${__PORT_ENV__:-__PORT__}:__PORT__"
+    volumes:
+      # EDIT: 初期化ディレクトリのマウント先は DB に依存（例: postgres は /docker-entrypoint-initdb.d）
+      - ./init:/init:ro
+      - __DB__data:/var/lib/__DB__
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8g
+    healthcheck:
+      # EDIT: この DB に合った疎通確認コマンドへ置き換える
+      test: ["CMD-SHELL", "true"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  __DB__data:
