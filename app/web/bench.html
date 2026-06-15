@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>compare-db-oss · ベンチマーク結果</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    .bench-layout { padding: 24px 28px; max-width: 1100px; }
+    .back-link { font-size: 13px; color: #4f46e5; text-decoration: none; display: inline-block; margin-bottom: 18px; }
+    .back-link:hover { text-decoration: underline; }
+    .section-title { font-size: 16px; font-weight: 600; color: #0f2540; margin: 0 0 14px; }
+
+    .filter-bar { display: flex; gap: 8px; margin-bottom: 24px; align-items: center; }
+    .filter-bar span { font-size: 13px; color: #64748b; margin-right: 4px; }
+    .filter-btn {
+      font-size: 12.5px; padding: 4px 14px; border-radius: 14px;
+      border: 1px solid #c7d2fe; background: #f8fafc; color: #334155; cursor: pointer;
+    }
+    .filter-btn:hover { background: #eef2ff; }
+    .filter-btn.active { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+
+    .charts-row { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
+    .chart-card { flex: 1; min-width: 320px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px 20px; }
+    .chart-card h3 { margin: 0 0 14px; font-size: 14px; color: #0f2540; }
+
+    #empty-msg {
+      background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+      border-radius: 8px; padding: 18px 22px; font-size: 14px; line-height: 1.7;
+    }
+    #empty-msg code { background: #fef3c7; padding: 1px 6px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 13px; }
+
+    .table-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px 20px; }
+    .grid-wrap { overflow: auto; max-height: 420px; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 10px; }
+    table.grid { border-collapse: collapse; width: 100%; font-size: 13px; }
+    table.grid th, table.grid td { border: 1px solid #e2e8f0; padding: 7px 10px; text-align: left; }
+    table.grid th { background: #f8fafc; position: sticky; top: 0; white-space: nowrap; }
+    table.grid th[data-col] { cursor: pointer; user-select: none; }
+    table.grid th[data-col]:hover { background: #eef2ff; }
+    table.grid th.sorted::after { content: " ↑"; color: #4f46e5; }
+    table.grid th.sorted.desc::after { content: " ↓"; }
+    table.grid tbody tr:hover { background: #f8fafc; }
+
+    .db-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <h1>compare-db-oss <span>ベンチマーク結果</span></h1>
+  </header>
+
+  <div class="bench-layout">
+    <a class="back-link" href="/">← 操作コンソールに戻る</a>
+
+    <div class="filter-bar">
+      <span>フィルタ:</span>
+      <button class="filter-btn active" data-filter="all">すべて</button>
+      <button class="filter-btn" data-filter="native">ネイティブのみ</button>
+      <button class="filter-btn" data-filter="ycsb">YCSB のみ</button>
+    </div>
+
+    <div id="empty-msg" style="display:none">
+      ベンチマーク結果がまだありません。<br>
+      <code>make bench DB=postgresql</code> などで計測後に表示されます。<br>
+      結果は <code>benchmarks/results/&lt;db&gt;/&lt;date&gt;/summary.json</code> に保存されます。
+    </div>
+
+    <section id="charts-section" style="display:none">
+      <p class="section-title">グラフ比較</p>
+      <div class="charts-row">
+        <div class="chart-card" id="chart-throughput-wrap">
+          <h3>スループット比較 (ops/sec or tps)</h3>
+          <canvas id="chart-throughput" height="220"></canvas>
+        </div>
+        <div class="chart-card" id="chart-latency-wrap">
+          <h3>レイテンシ比較 (ms)</h3>
+          <canvas id="chart-latency" height="220"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section id="table-section" style="display:none">
+      <div class="table-card">
+        <p class="section-title">計測結果一覧</p>
+        <div class="grid-wrap">
+          <table class="grid" id="result-table">
+            <thead>
+              <tr>
+                <th data-col="db">DB</th>
+                <th data-col="date">日付</th>
+                <th data-col="tool">ツール</th>
+                <th data-col="throughput">スループット</th>
+                <th data-col="latency_ms">レイテンシ</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="/bench.js"></script>
+</body>
+</html>

@@ -141,21 +141,129 @@ function select(key) {
   renderPanel();
 }
 
+let activeTab = "ops";  // "ops" | "doc"
+
 function renderPanel() {
   const p = document.getElementById("panel");
   const d = current;
   const down = d.status !== "up";
-  let html = `<div class="panel-head"><h2>${d.name}</h2>
+  p.innerHTML = "";
+
+  // ヘッダ（名前・バッジ・起動/停止ボタン）
+  const head = document.createElement("div");
+  head.className = "panel-head";
+  head.innerHTML = `<h2>${d.name}</h2>
     <span class="badge">${CAT_LABEL[d.category] || d.category}</span>
-    <span class="badge">GUI: ${d.gui_type}</span></div>`;
-  if (down) {
-    html += `<div class="status-line down">⚠️ 接続できません（停止中の可能性）。
-      <code>make up DB=${d.key}</code> で起動後、右上の「状態更新」を押してください。</div>`;
-  } else {
-    html += `<div class="status-line">● 接続OK</div>`;
+    <span class="badge">GUI: ${d.gui_type}</span>`;
+  if (d.controllable) {
+    const ctl = document.createElement("span");
+    ctl.className = "ctl-buttons";
+    const startBtn = document.createElement("button");
+    startBtn.className = "btn ctl start";
+    startBtn.textContent = "▶ 起動";
+    startBtn.onclick = () => controlDb(d, "start", startBtn);
+    const stopBtn = document.createElement("button");
+    stopBtn.className = "btn ctl stop";
+    stopBtn.textContent = "■ 停止";
+    stopBtn.onclick = () => controlDb(d, "stop", stopBtn);
+    ctl.appendChild(startBtn);
+    ctl.appendChild(stopBtn);
+    head.appendChild(ctl);
   }
-  p.innerHTML = html;
-  panelCards(d).forEach(card => p.appendChild(renderCard(d, card)));
+  p.appendChild(head);
+
+  // 制御結果メッセージ領域
+  const ctlMsg = document.createElement("div");
+  ctlMsg.id = "ctl-msg";
+  p.appendChild(ctlMsg);
+
+  // 接続ステータス
+  const status = document.createElement("div");
+  if (down) {
+    status.className = "status-line down";
+    status.innerHTML = d.controllable
+      ? `⚠️ 接続できません（停止中の可能性）。上の「▶ 起動」を押すか、<code>make up DB=${d.key}</code> で起動してください。`
+      : `⚠️ 接続できません（組込DB。アプリ内で初期化されます）。`;
+  } else {
+    status.className = "status-line";
+    status.innerHTML = `● 接続OK`;
+  }
+  p.appendChild(status);
+
+  // タブ（操作 / 解説）
+  const tabs = document.createElement("div");
+  tabs.className = "tabs";
+  [["ops", "操作"], ["doc", "解説"]].forEach(([id, label]) => {
+    const t = document.createElement("button");
+    t.className = "tab" + (activeTab === id ? " active" : "");
+    t.textContent = label;
+    t.onclick = () => { activeTab = id; renderPanel(); };
+    tabs.appendChild(t);
+  });
+  p.appendChild(tabs);
+
+  const body = document.createElement("div");
+  body.className = "tab-body";
+  p.appendChild(body);
+
+  if (activeTab === "doc") {
+    renderDocTab(body, d);
+  } else {
+    panelCards(d).forEach(card => body.appendChild(renderCard(d, card)));
+    const bulk = renderBulkCard(d);
+    if (bulk) body.appendChild(bulk);
+  }
+}
+
+// 起動/停止（docker compose）
+async function controlDb(db, op, btn) {
+  const msg = document.getElementById("ctl-msg");
+  const label = op === "start" ? "起動" : "停止";
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = label + "中…";
+  if (msg) {
+    msg.className = "ctl-msg pending";
+    msg.textContent = `${db.name} を${label}しています…`;
+  }
+  try {
+    const res = await (await fetch(`/api/${db.key}/control/${op}`, { method: "POST" })).json();
+    if (msg) {
+      msg.className = "ctl-msg " + (res.ok ? "ok" : "err");
+      msg.textContent = res.message || (res.ok ? "OK" : "失敗");
+    }
+    // 起動は ready まで時間がかかるので、少し待ってから状態を再取得
+    setTimeout(load, op === "start" ? 4000 : 800);
+  } catch (e) {
+    if (msg) { msg.className = "ctl-msg err"; msg.textContent = String(e); }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+// 解説タブ（教育的コンテンツ）
+function renderDocTab(body, db) {
+  const c = (typeof DB_CONTENT !== "undefined") && DB_CONTENT[db.key];
+  if (!c) {
+    body.innerHTML = `<p class="hint">この DB の解説はまだ用意されていません。</p>`;
+    return;
+  }
+  const list = (arr) => "<ul>" + arr.map(x => `<li>${esc(x)}</li>`).join("") + "</ul>";
+  const links = (c.docs || []).map(l =>
+    `<a class="doc-link" href="${l.url}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join("");
+  const sections = [
+    c.overview ? `<h4>概要</h4><p>${esc(c.overview)}</p>` : "",
+    c.features ? `<h4>特徴</h4>${list(c.features)}` : "",
+    c.usecases ? `<h4>ユースケース</h4>${list(c.usecases)}` : "",
+    c.architecture ? `<h4>アーキテクチャへの組み込み例</h4>${list(c.architecture)}` : "",
+  ].join("");
+  body.innerHTML =
+    `<div class="doc">
+      ${c.tagline ? `<p class="doc-tagline">${esc(c.tagline)}</p>` : ""}
+      ${links ? `<div class="doc-links">${links}</div>` : ""}
+      ${sections}
+    </div>`;
 }
 
 function renderCard(db, card) {
@@ -231,8 +339,89 @@ function renderCard(db, card) {
   return wrap;
 }
 
+// gui_type ごとの大容量データ用の追加フィールド（投入先など）
+function bulkExtra(db) {
+  switch (db.gui_type) {
+    case "vector": return [{ name: "dim", label: "次元", type: "number", value: "8" }];
+    case "document": return [{ name: "collection", label: "コレクション", type: "text", value: "bulk" }];
+    case "search": return [{ name: "index", label: "インデックス", type: "text", value: "bulk" }];
+    case "keyvalue": return [{ name: "prefix", label: "キー接頭辞", type: "text", value: "bulk:" }];
+    case "timeseries": return [{ name: "measurement", label: "measurement", type: "text", value: "bulk" }];
+    default: return [];
+  }
+}
+
+// 大容量データ（Create/Read/Delete + 処理時間計測）カード
+function renderBulkCard(db) {
+  const wrap = document.createElement("div");
+  wrap.className = "card bulk";
+  wrap.innerHTML = `<h3>大容量データ（性能お試し）</h3>
+    <p class="desc">指定件数を一括投入し、各操作の<strong>処理時間</strong>を計測します。
+    投入後は上の操作パネルから検索/更新/削除（CRUD）も試せます。</p>`;
+
+  const inputs = {};
+  const fields = [{ name: "n", label: "件数", type: "number", value: "10000" }, ...bulkExtra(db)];
+  const frow = document.createElement("div");
+  frow.className = "bulk-fields";
+  fields.forEach(f => {
+    const fd = document.createElement("div");
+    fd.className = "field";
+    fd.innerHTML = `<label>${f.label}</label>`;
+    const input = document.createElement("input");
+    input.type = f.type === "number" ? "number" : "text";
+    input.value = f.value;
+    fd.appendChild(input);
+    frow.appendChild(fd);
+    inputs[f.name] = input;
+  });
+  wrap.appendChild(frow);
+
+  const resultEl = document.createElement("div");
+  resultEl.className = "result";
+
+  const run = async (action, btn, label) => {
+    const params = {};
+    Object.keys(inputs).forEach(n => { params[n] = inputs[n].value; });
+    const buttons = wrap.querySelectorAll("button");
+    buttons.forEach(b => b.disabled = true);
+    const orig = btn.textContent;
+    btn.textContent = label + "中…";
+    try {
+      const res = await fetch(`/api/${db.key}/action/${action}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(params),
+      });
+      renderResult(resultEl, await res.json());
+    } catch (e) {
+      renderResult(resultEl, { ok: false, message: String(e) });
+    } finally {
+      buttons.forEach(b => b.disabled = false);
+      btn.textContent = orig;
+    }
+  };
+
+  const row = document.createElement("div");
+  row.className = "row";
+  [["bulk_load", "投入(Create)", "btn"], ["bulk_count", "件数(Read)", "btn sec"],
+   ["bulk_clear", "全削除(Delete)", "btn sec danger"]].forEach(([action, label, cls]) => {
+    const b = document.createElement("button");
+    b.className = cls;
+    b.textContent = label;
+    b.onclick = () => run(action, b, label);
+    row.appendChild(b);
+  });
+  wrap.appendChild(row);
+  wrap.appendChild(resultEl);
+  return wrap;
+}
+
 function renderResult(el, res) {
   el.innerHTML = "";
+  if (res.elapsed_ms !== undefined && res.elapsed_ms !== null) {
+    const t = document.createElement("div");
+    t.className = "timing";
+    t.innerHTML = `⏱ 処理時間: <strong>${res.elapsed_ms} ms</strong>`;
+    el.appendChild(t);
+  }
   if (res.message) {
     const m = document.createElement("div");
     m.className = "msg " + (res.ok ? "ok" : "err");

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>compare-db-oss · Chaos Engineering</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .chaos-layout { padding: 24px 32px; max-width: 960px; }
+    .page-desc { font-size: 13.5px; color: #334155; line-height: 1.7; margin-bottom: 24px; max-width: 720px; }
+    .setup-box {
+      background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+      padding: 14px 18px; font-size: 13px; color: #92400e; margin-bottom: 20px;
+    }
+    .setup-box code { background: #fff7ed; padding: 2px 6px; border-radius: 4px; }
+    .proxies-grid { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+    .proxy-chip {
+      display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+      border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; font-size: 13px;
+    }
+    .proxy-chip .dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; }
+    .proxy-chip .toxics-count { font-size: 11px; color: #ef4444; font-weight: 600; }
+    .fault-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .fault-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px 18px; }
+    .fault-card h3 { margin: 0 0 8px; font-size: 15px; }
+    .fault-card .desc { font-size: 12.5px; color: #64748b; margin: 0 0 14px; }
+    .slider-row { margin-bottom: 12px; }
+    .slider-row label { font-size: 12px; color: #475569; display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .slider-row input[type=range] { width: 100%; }
+    .active-toxics { margin-top: 24px; }
+    .active-toxics h3 { font-size: 15px; margin: 0 0 12px; }
+    .toxic-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 12px; border: 1px solid #fecaca; border-radius: 6px; background: #fef2f2;
+      margin-bottom: 6px; font-size: 13px;
+    }
+    .toxic-row .toxic-info { color: #991b1b; }
+    .toxic-row button { background: #ef4444; color: #fff; border: 0; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    .ctl-msg:empty { display: none; }
+    .hint { color: #94a3b8; font-size: 13.5px; }
+    .toxiproxy-off {
+      background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
+      padding: 16px 20px; font-size: 13px; color: #991b1b; margin-bottom: 20px;
+    }
+    .toxiproxy-off code { background: #fff1f1; padding: 2px 6px; border-radius: 4px; }
+    .section-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #94a3b8; margin: 20px 0 10px; }
+    details.isolation-section { margin-top: 28px; }
+    details.isolation-section summary { cursor: pointer; font-size: 15px; font-weight: 600; color: #0f2540; padding: 8px 0; }
+    .isolation-desc { font-size: 13px; color: #334155; line-height: 1.7; margin-bottom: 16px; }
+    table.iso-table { border-collapse: collapse; font-size: 12.5px; width: 100%; }
+    table.iso-table th, table.iso-table td { border: 1px solid #e2e8f0; padding: 6px 10px; }
+    table.iso-table th { background: #f8fafc; }
+    table.iso-table td.ok { color: #047857; } table.iso-table td.ng { color: #b91c1c; }
+    .msg.ok { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+    .msg.err { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <h1>compare-db-oss <span>Chaos Engineering</span></h1>
+    <nav class="topnav">
+      <a href="/">操作コンソール</a>
+      <a href="/scenarios.html">シナリオ比較</a>
+      <a href="/bench.html">ベンチ可視化</a>
+    </nav>
+  </header>
+  <div class="chaos-layout" style="overflow-y:auto;max-height:calc(100vh - 53px)">
+    <p class="page-desc">
+      <strong>Toxiproxy</strong> を使ってネットワーク障害（遅延・パケットロス・タイムアウト）を
+      シミュレーションし、各DBの耐障害性を体験します。
+      フォールトを注入したまま操作コンソールで DB を操作すると、
+      レイテンシへの影響を処理時間計測で確認できます。
+    </p>
+
+    <div id="setup-notice"></div>
+
+    <div class="section-label">Toxiproxy プロキシ</div>
+    <div id="proxies-area"><p class="hint">読み込み中…</p></div>
+
+    <div id="reset-row" style="display:none;margin:10px 0 20px">
+      <button class="btn sec" onclick="resetAll()">🔄 全フォールトをリセット</button>
+    </div>
+
+    <div id="fault-area"></div>
+    <div id="chaos-msg" class="ctl-msg" style="margin:12px 0"></div>
+    <div id="active-area"></div>
+
+    <!-- トランザクション分離レベル解説 -->
+    <details class="isolation-section">
+      <summary>📖 トランザクション分離レベルの解説</summary>
+      <div style="padding:16px 0">
+        <p class="isolation-desc">
+          ACID の <strong>I（分離性 Isolation）</strong> は、並行するトランザクションが
+          互いの中間状態を見えないようにする度合いです。
+          分離レベルを高くするほど一貫性は高まりますが、スループットが下がります。
+        </p>
+        <table class="iso-table">
+          <thead>
+            <tr>
+              <th>分離レベル</th>
+              <th>Dirty Read</th>
+              <th>Non-Repeatable Read</th>
+              <th>Phantom Read</th>
+              <th>PostgreSQL のデフォルト</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Read Uncommitted</strong></td>
+              <td class="ng">起きうる</td><td class="ng">起きうる</td>
+              <td class="ng">起きうる</td><td>—（PGはRCとして動く）</td>
+            </tr>
+            <tr>
+              <td><strong>Read Committed</strong></td>
+              <td class="ok">防止</td><td class="ng">起きうる</td>
+              <td class="ng">起きうる</td><td>✅ デフォルト</td>
+            </tr>
+            <tr>
+              <td><strong>Repeatable Read</strong></td>
+              <td class="ok">防止</td><td class="ok">防止</td>
+              <td class="ng">起きうる*</td><td>—</td>
+            </tr>
+            <tr>
+              <td><strong>Serializable</strong></td>
+              <td class="ok">防止</td><td class="ok">防止</td>
+              <td class="ok">防止</td><td>—（最も厳格）</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="font-size:12px;color:#64748b;margin-top:8px">
+          * PostgreSQL の Repeatable Read は MVCC により Phantom Read も実質防止します。<br>
+          各問題の体験デモは
+          <code>scenarios/isolation-levels/demo.py</code> を参照してください。
+        </p>
+        <div style="margin-top:16px">
+          <p class="isolation-desc" style="margin-bottom:10px">
+            <strong>Dirty Read</strong>: コミットされていない変更を別 TX が読む<br>
+            <strong>Non-Repeatable Read</strong>: 同一 TX 内で同じ行を2回読むと値が変わる<br>
+            <strong>Phantom Read</strong>: 同一 TX 内でのカウントが他 TX の INSERT で変わる
+          </p>
+          <pre style="background:#0f172a;color:#e2e8f0;padding:12px;border-radius:8px;font-size:12px;overflow:auto">-- 分離レベルの確認（PostgreSQL）
+SHOW transaction_isolation;
+
+-- TX 内で変更
+BEGIN;
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+SELECT count(*) FROM orders;   -- 100 件
+-- 別セッションが INSERT + COMMIT
+SELECT count(*) FROM orders;   -- Serializable: まだ 100 件（Phantom Read 防止）
+COMMIT;</pre>
+        </div>
+      </div>
+    </details>
+  </div>
+  <script src="/chaos.js"></script>
+</body>
+</html>

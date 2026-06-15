@@ -1,0 +1,35 @@
+services:
+  postgresql:
+    image: postgres:16
+    container_name: pattern-cache-aside-pg
+    environment:
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: ${DB_NAME:-appdb}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_cache_aside_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    container_name: pattern-cache-aside-redis
+    command: ["redis-server", "--requirepass", "${DB_PASSWORD:-changeme}", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_cache_aside_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${DB_PASSWORD:-changeme}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pg_cache_aside_data:
+  redis_cache_aside_data:

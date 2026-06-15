@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    ports:
+      - "8474:8474"   # HTTP 管理 API
+      - "8666:8666"   # Postgres プロキシ
+      - "8667:8667"   # Redis プロキシ
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - fault-net
+
+  postgres:
+    image: postgres:16
+    ports:
+      - "5433:5432"   # ポート被り回避（ホスト側 5433）
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+      POSTGRES_DB: demodb
+    networks:
+      - fault-net
+
+  redis:
+    image: redis:7
+    ports:
+      - "6380:6379"   # ポート被り回避（ホスト側 6380）
+    networks:
+      - fault-net
+
+networks:
+  fault-net:
+    driver: bridge

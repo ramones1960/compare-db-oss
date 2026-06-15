@@ -22,8 +22,17 @@ services:
       OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD:-Zx9!qWeRt#Uk7mp2}
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-neo4jPass123}
       APP_DATA_DIR: /app/data
+      # 画面からの DB 起動/停止に使う。リポジトリをホストと同一パスでマウントするため、
+      # その絶対パスを渡す（make app が $(CURDIR) を設定。未設定なら /repo を既定にする）。
+      HOST_REPO_ROOT: ${HOST_REPO_ROOT:-/repo}
       # 実行時: localhost の DB 接続はプロキシを経由させない
       NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1}
       no_proxy: ${no_proxy:-localhost,127.0.0.1}
     volumes:
       - ./data:/app/data   # SQLite / DuckDB の永続化（組込のためアプリ内で動作）
+      # 画面から各DBを起動/停止するため docker ソケットを共有する（検証/学習用）。
+      - /var/run/docker.sock:/var/run/docker.sock
+      # リポジトリを「ホストと同一の絶対パス」でマウントする。各DBの compose は
+      # ./init 等の相対バインドマウントを使うため、ホスト docker デーモンから見て
+      # 同じパスに解決される必要がある。make app が HOST_REPO_ROOT=$(CURDIR) を渡す。
+      - ${HOST_REPO_ROOT:-..}:${HOST_REPO_ROOT:-/repo}

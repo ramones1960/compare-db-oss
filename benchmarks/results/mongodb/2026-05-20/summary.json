@@ -1,0 +1,14 @@
+{
+  "db": "mongodb",
+  "version": "7.0",
+  "date": "2026-05-20",
+  "host": {"cpus": "4", "memory": "8g"},
+  "workloads": {
+    "insert_find": {
+      "throughput_ops": 73000,
+      "latency_avg_ms": 1.6,
+      "threads": 8,
+      "duration_s": 30
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "db": "qdrant",
+  "version": "1.9",
+  "date": "2026-05-20",
+  "host": {"cpus": "4", "memory": "8g"},
+  "workloads": {
+    "vector_search": {
+      "throughput_ops": 466,
+      "latency_avg_ms": 2.1,
+      "threads": 4,
+      "duration_s": 30,
+      "dim": 64,
+      "recall_at_10": 0.98
+    }
+  }
+}
