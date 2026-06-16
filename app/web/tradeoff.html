@@ -48,19 +48,73 @@
           </table>
         </div>
         <div style="margin-top:16px;font-size:12px;color:#64748b;line-height:1.8">
-          <strong>スコア説明 (1〜5)</strong><br>
-          書き込み速度: 高頻度挿入のスループット<br>
-          読み取り速度: KV・プライマリキー参照のレイテンシ<br>
-          クエリ柔軟性: JOIN・集計・全文検索の表現力<br>
-          水平スケール: 複数ノードへの分散・シャーディング<br>
-          整合性: ACID・強整合のサポートレベル<br>
-          運用容易さ: 設定・監視・バックアップのシンプルさ
+          <details open>
+            <summary style="cursor:pointer;font-weight:700;color:#334155;font-size:13px;margin-bottom:8px">各評価軸の段階基準 (1〜5)</summary>
+            <table id="crit-table" style="border-collapse:collapse;width:100%;font-size:11px;margin-top:6px">
+              <thead>
+                <tr style="background:#f8fafc">
+                  <th style="border:1px solid #e2e8f0;padding:5px 8px;text-align:left;min-width:72px">評価軸</th>
+                  <th style="border:1px solid #e2e8f0;padding:5px 8px;text-align:center;color:#94a3b8">1</th>
+                  <th style="border:1px solid #e2e8f0;padding:5px 8px;text-align:center;color:#94a3b8">2</th>
+                  <th style="border:1px solid #e2e8f0;padding:5px 8px;text-align:center;color:#94a3b8">3</th>
+                  <th style="border:1px solid #e2e8f0;padding:5px 8px;text-align:center;color:#94a3b8">4</th>
+                  <th style="border:1px solid #e2e8f0;padding:5px 8px;text-align:center;color:#94a3b8">5</th>
+                </tr>
+              </thead>
+              <tbody id="crit-tbody"></tbody>
+            </table>
+          </details>
         </div>
       </div>
     </div>
   </div>
 
   <script>
+    const SCORE_CRITERIA = {
+      "書き込み速度": [
+        "<1K ops/sec\nWALオーバーヘッド大・同期書き込み主体",
+        "1K〜10K ops/sec\n標準的なRDB書き込み（バッファ書き込み）",
+        "10K〜100K ops/sec\nバッチ書き込み・非同期コミット活用",
+        "100K〜1M ops/sec\nLSMツリー or インメモリ書き込み",
+        ">1M ops/sec\nインメモリ主体 or append-only",
+      ],
+      "読み取り速度": [
+        ">100ms\n複雑なインデックス探索・フルスキャン",
+        "10〜100ms\n通常のRDBインデックス参照",
+        "1〜10ms\n最適化済みインデックス・ページキャッシュ",
+        "0.1〜1ms\nインメモリ or NVMe SSD最適化",
+        "<0.1ms\nインメモリ・ハッシュテーブル直引き",
+      ],
+      "クエリ柔軟性": [
+        "完全一致のみ\nKV参照・プライマリキー検索",
+        "範囲検索・基本フィルタ\n集計は限定的",
+        "基本JOIN・GROUP BY\n集計関数対応",
+        "ウィンドウ関数・サブクエリ\n全文検索・地理空間など",
+        "フルSQL\n+ グラフ/ベクトル/時系列専用構文",
+      ],
+      "水平スケール": [
+        "シングルノードのみ\nスケールアウト不可",
+        "Read Replicaのみ\n書き込みはシングルマスター",
+        "手動シャーディング可能\n運用コスト高",
+        "自動シャーディング\n再バランス対応",
+        "クラスタネイティブ\nリニアスケール・自動フェイルオーバー",
+      ],
+      "整合性": [
+        "最終整合のみ\n強整合保証なし",
+        "Read-your-writes等\n限定的整合性",
+        "設定可能な整合性\n（Quorum等）",
+        "デフォルト強整合\nor 単一ノードACID",
+        "完全ACID\n分散トランザクション（Serializable）",
+      ],
+      "運用容易さ": [
+        "非常に複雑\nクラスタ必須・専門的チューニング",
+        "セットアップが複雑\n専門知識が必要",
+        "標準設定で動作\n学習コスト中程度",
+        "設定少・監視充実\nバックアップ・リストアが容易",
+        "ゼロコンフィグ or 組込DB\n即使用可能",
+      ],
+    };
+
     const DB_SCORES = {
       axes: ["書き込み速度", "読み取り速度", "クエリ柔軟性", "水平スケール", "整合性", "運用容易さ"],
       postgresql:  [3, 4, 5, 2, 5, 4],
@@ -241,7 +295,25 @@
       }
     }
 
+    function buildCritTable() {
+      const tbody = document.getElementById("crit-tbody");
+      if (!tbody) return;
+      tbody.innerHTML = "";
+      DB_SCORES.axes.forEach(ax => {
+        const levels = SCORE_CRITERIA[ax] || [];
+        const tr = document.createElement("tr");
+        const axCell = `<td style="border:1px solid #e2e8f0;padding:5px 8px;font-weight:600;color:#334155;white-space:nowrap">${ax}</td>`;
+        const lvCells = [1,2,3,4,5].map(lv => {
+          const txt = (levels[lv-1] || "").replace(/\n/g, "<br>");
+          return `<td style="border:1px solid #e2e8f0;padding:5px 8px;vertical-align:top;line-height:1.6">${txt}</td>`;
+        }).join("");
+        tr.innerHTML = axCell + lvCells;
+        tbody.appendChild(tr);
+      });
+    }
+
     buildChips();
+    buildCritTable();
     render();
   </script>
 </body>

@@ -2,6 +2,25 @@
 let DBS = [];
 let current = null;
 
+// 起動中DBの追跡（起動ボタン押下後、DB が ready になるまでポーリングで状態更新）
+const startingDbs = new Set();
+let startPollTimer = null;
+
+function startPolling() {
+  if (startPollTimer) return;
+  startPollTimer = setInterval(async () => {
+    if (startingDbs.size === 0) { clearInterval(startPollTimer); startPollTimer = null; return; }
+    try {
+      const dbs = await (await fetch("/api/databases")).json();
+      dbs.forEach(d => { if (startingDbs.has(d.key) && d.status === "up") startingDbs.delete(d.key); });
+      DBS = dbs;
+      if (current) current = DBS.find(d => d.key === current.key) || null;
+      renderSidebar();
+      if (current) renderPanel();
+    } catch (_) { /* ネットワークエラーは無視して継続 */ }
+  }, 5000);
+}
+
 const CAT_LABEL = {
   relational: "リレーショナル", document: "ドキュメント", "key-value": "キーバリュー",
   "wide-column": "ワイドカラム", graph: "グラフ", newsql: "分散SQL",
@@ -110,6 +129,7 @@ function panelCards(db) {
 
 async function load() {
   DBS = await (await fetch("/api/databases")).json();
+  DBS.forEach(d => { if (startingDbs.has(d.key) && d.status === "up") startingDbs.delete(d.key); });
   renderSidebar();
   if (DBS.length && !current) select(DBS[0].key);
   else if (current) renderPanel();
@@ -180,10 +200,16 @@ function renderPanel() {
   // 接続ステータス
   const status = document.createElement("div");
   if (down) {
-    status.className = "status-line down";
-    status.innerHTML = d.controllable
-      ? `⚠️ 接続できません（停止中の可能性）。上の「▶ 起動」を押すか、<code>make up DB=${d.key}</code> で起動してください。`
-      : `⚠️ 接続できません（組込DB。アプリ内で初期化されます）。`;
+    if (startingDbs.has(d.key)) {
+      status.className = "status-line starting";
+      status.innerHTML = `⏳ 起動中... DB が ready になるまでしばらくお待ちください（自動更新中）。`;
+    } else if (d.controllable) {
+      status.className = "status-line down";
+      status.innerHTML = `⚠️ 接続できません（停止中の可能性）。上の「▶ 起動」を押すか、<code>make up DB=${d.key}</code> で起動してください。`;
+    } else {
+      status.className = "status-line down";
+      status.innerHTML = `⚠️ 接続できません（組込DB。アプリ内で初期化されます）。`;
+    }
   } else {
     status.className = "status-line";
     status.innerHTML = `● 接続OK`;
@@ -232,11 +258,16 @@ async function controlDb(db, op, btn) {
   }
   try {
     const res = await (await fetch(`/api/${db.key}/control/${op}`, { method: "POST" })).json();
+    if (res.ok && op === "start") {
+      startingDbs.add(db.key);
+      startPolling();
+    } else if (op === "stop") {
+      startingDbs.delete(db.key);
+    }
     if (msg) {
       msg.className = "ctl-msg " + (res.ok ? "ok" : "err");
       msg.textContent = res.message || (res.ok ? "OK" : "失敗");
     }
-    // 起動は ready まで時間がかかるので、少し待ってから状態を再取得
     setTimeout(load, op === "start" ? 4000 : 800);
   } catch (e) {
     if (msg) { msg.className = "ctl-msg err"; msg.textContent = String(e); }
@@ -521,16 +552,29 @@ function renderScoreTab(body, db) {
   tbl.appendChild(tbody);
   wrap.appendChild(tbl);
 
-  const note = document.createElement("div");
-  note.className = "score-note";
-  note.innerHTML = `<br><strong>軸の説明:</strong><br>
-    書き込み速度: 高頻度の書き込み・挿入のスループット<br>
-    読み取り速度: 単純なキー/プライマリ読み取りのレイテンシ<br>
-    クエリ柔軟性: JOIN・集計・全文検索など複雑なクエリへの対応<br>
-    水平スケール: 複数ノードへのシャード/分散のしやすさ<br>
-    整合性: ACID・強整合・結果整合のサポートレベル<br>
-    運用容易さ: セットアップ・監視・バックアップのシンプルさ`;
-  wrap.appendChild(note);
+  const crit = (typeof SCORE_CRITERIA !== "undefined") && SCORE_CRITERIA;
+  if (crit) {
+    const critDiv = document.createElement("div");
+    critDiv.className = "score-note score-criteria";
+    critDiv.innerHTML = `<strong>各軸の評価基準（このDBのスコアをハイライト）:</strong>`;
+    const ct = document.createElement("table");
+    ct.className = "score-table score-crit-tbl";
+    ct.innerHTML = "<thead><tr><th>評価軸</th><th>判定基準 (スコア / 段階説明)</th></tr></thead>";
+    const ctb = document.createElement("tbody");
+    axes.forEach((ax, i) => {
+      const v = vals[i];
+      const levels = crit[ax] || [];
+      const tr = document.createElement("tr");
+      const levHtml = levels.map((l, li) =>
+        `<span class="${li + 1 === v ? "crit-hl" : "crit-dim"}">${l}</span>`
+      ).join("<br>");
+      tr.innerHTML = `<td style="white-space:nowrap;font-weight:600">${ax}</td><td>${levHtml}</td>`;
+      ctb.appendChild(tr);
+    });
+    ct.appendChild(ctb);
+    critDiv.appendChild(ct);
+    wrap.appendChild(critDiv);
+  }
 
   body.appendChild(wrap);
   requestAnimationFrame(() => drawRadar(canvas, vals, axes, "#4f46e5"));
